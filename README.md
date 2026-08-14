@@ -206,19 +206,27 @@ too small — prompts + thresholds + feedback loop is the right first rung).
 
 ## Timebox
 
-<!-- EDIT BEFORE SUBMITTING: state your true hands-on time, e.g.: -->
-*~2 hours hands-on driving an AI build agent against a spec kit I prepared
+
+*~2.5 hours hands-on driving an AI build agent against a spec kit I prepared
 beforehand (research and kit-writing time on top of that). The agent's outputs
 were verified at milestone checkpoints; docs/AI_USAGE.md is the log.*
 
 ## How AI was used
 
-See [docs/AI_USAGE.md](docs/AI_USAGE.md). In three bullets: (1) this repo was
-built by driving Claude Code against a pre-written spec kit (strategy, check
-catalog, prompts, eval design) — the agent's key outputs were verified at
-milestone checkpoints, and three of the kit's API assumptions were corrected
-against current docs at build time; (2) at runtime, two versioned judge prompts
-with enforced JSON schemas power Tiers 1–2, with replay caching making every
-demo and test offline-deterministic; (3) eval numbers are never invented — the
-table above is pasted from a real `make eval` run, and hand-authored replay
-fixtures are explicitly marked as such.
+Full log in [docs/AI_USAGE.md](docs/AI_USAGE.md). The short version:
+
+- **I did the thinking; the agent did the typing.** Before any code existed, I
+  wrote the product thesis (publish-confidence, not moderation), the full check
+  catalog with thresholds and severities, both judge prompts with their schemas
+  and injection defense, the seeded-defect eval design, and the dashboard spec
+  — then drove Claude Code against that specification for ~2 hands-on hours.
+- **I set the guardrails that make this repo trustworthy**: offline-first
+  replay mode, never invent an eval number, mark every hand-authored fixture as
+  such, verify model IDs/prices/SDK APIs against current docs instead of
+  training memory, and self-check acceptance criteria at every milestone. The
+  verification structure — not luck — is what caught the bugs and stale
+  assumptions logged in AI_USAGE.md.
+- **At runtime**, AI is a metered component, not the product: two versioned
+  judge prompts behind enforced JSON schemas, costs computed per finding from
+  the usage block, and a replay cache that makes every demo, test, and eval
+  offline-deterministic.

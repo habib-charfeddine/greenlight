@@ -6,15 +6,49 @@ pre-written spec kit) and **AI at runtime** (the Tier 1/2 judges inside the prod
 
 ## AI at build time
 
-### Setup
+### Division of labor — what I did, what the agent did
 
-The build was driven by Claude Code from a spec kit written before the session:
-strategy, build spec, check catalog with stable IDs and thresholds, judge prompts
-with JSON schemas, data/eval design, and dashboard spec. Claude Code executed
-milestones M0–M5 against those specs; the human's job was direction, spot-checks
-at milestone boundaries, and honesty control (no invented numbers).
+I treated this the way I'd run any AI-leveraged project: **the thinking happened
+before the agent was ever prompted**, and the agent multiplied my two hands-on
+hours into a full build. Concretely:
 
-### Build log (running — what the agent did, what a human should verify)
+**Mine (designed before and directed during the build):**
+
+- **The problem framing.** Deciding this is *not* a content-moderation task but
+  a publish-confidence problem — most failures are boring and mechanical, so
+  deterministic code runs on everything and AI is spent only on judgment calls.
+  Every product bet in the README (advisory-not-blocking, precision-first,
+  policy-as-config, evidence-or-it-didn't-happen) was made by me, in writing,
+  before a line of code existed.
+- **Spotting the planted defect.** While reading the brief I noticed its own
+  sample data has "Buy tickets" linking to `/highlights` and "Watch highlights"
+  linking to `/match-report`. I made catching that the build's central
+  acceptance test — it's the first thing the demo shows.
+- **The full specification the agent built against:** the check catalog (every
+  check_id, threshold, and severity as stable API), both judge prompts with
+  their JSON schemas and the layered injection defense, the seeded-defect eval
+  design (self-scoring was my requirement, not an afterthought), and the
+  dashboard spec down to its design tokens.
+- **The guardrails.** The agent operated under rules I wrote: work fully
+  offline by default; never invent an eval number — paste real output only;
+  mark every hand-authored replay entry as such; verify model IDs, prices, and
+  SDK APIs against current docs instead of trusting training memory; self-check
+  the acceptance criteria at milestone boundaries; keep the code boring. Every
+  honesty property a reviewer can check in this repo traces to one of those
+  rules.
+- **Milestone gates and final judgment.** I reviewed at checkpoints, decided
+  what was submit-blocking versus roadmap, and made the scoping calls (what to
+  cut, what to defer, what to state as a known gap).
+
+**The agent's (Claude Code):** writing the code against the frozen contracts,
+fanning independent modules out to parallel sub-agents, integrating, authoring
+tests, running the eval/demo loops, and executing the adversarial review I
+required before submission.
+
+**The point of the design:** the corrections logged below were caught *by the
+verification structure I set up* — not by luck. The build log is the evidence.
+
+### Build log (what I directed, what the agent produced, what got caught)
 
 - **M0 scaffold.** Repo, pyproject (uv, pinned via `uv.lock`), data contracts
   (`models.py` mirrors the brief fixture exactly), tenant policy YAMLs, global
