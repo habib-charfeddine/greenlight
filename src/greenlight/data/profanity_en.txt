@@ -1,0 +1,34 @@
+# Greenlight bundled profanity lexicon (English).
+# One term per line; blank lines and '#' comments are ignored.
+# Matched case-insensitively with word boundaries by T0.profanity_lexicon,
+# so terms inside longer clean words (Scunthorpe, class, cocktail) never match.
+# Multi-word terms are allowed. Keep this list small and unambiguous: it is a
+# P0 pre-filter; borderline/contextual language is the Tier-1 judge's job.
+arse
+arsehole
+asshole
+bastard
+bellend
+bitch
+bollocks
+bullshit
+cock
+cunt
+dick
+dickhead
+dipshit
+fuck
+fucked
+fucker
+fucking
+goddamn
+jackass
+motherfucker
+piss
+pissed
+prick
+shit
+shite
+shitty
+twat
+wanker
