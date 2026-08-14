@@ -2,7 +2,9 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-greenlight.db
+*.db
+*.db-shm
+*.db-wal
 audit.jsonl
 feedback.jsonl
 feedgen/.cache/
