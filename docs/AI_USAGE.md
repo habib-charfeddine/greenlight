@@ -37,6 +37,27 @@ at milestone boundaries, and honesty control (no invented numbers).
 - *Human should verify:* model IDs/prices in `config/settings.yaml` against
   the console before a live run; the profanity wordlist (small and en-only by
   design); thresholds in settings vs. the catalog.
+- **M1–M4 parallel build.** Six sub-agents authored the independent modules
+  (feedgen, three Tier-0 check groups, dashboard, eval harness) against the
+  frozen M0 contracts while the orchestrating agent wrote the coupled core
+  (LLM wrapper, judges, engine, CLI) inline. Integration fixes made by the
+  orchestrator, not the module authors:
+  - *Offline fetch policy* (design decision, not in the kit): in replay mode
+    only localhost is fetched; external hosts return UNVERIFIABLE without
+    network I/O. This is what keeps the brief fixture AMBER (its
+    `cdn.storyteller.com` assets would otherwise be BROKEN→RED), keeps eval
+    deterministic, and honors "tests never touch the network".
+  - *Connection-refused vs DNS failure*: server-down is infrastructure →
+    UNVERIFIABLE (never pages); NXDOMAIN is a dead domain in content → BROKEN.
+  - *Headline persistence*: judge-written headlines now stored on the verdict
+    row so the case file shows the model's sentence, not a derived fallback.
+  - *Test-ordering bug caught in review*: replay caches load at engine
+    construction; a test seeded entries after constructing the engine and
+    silently exercised the miss path — restructured.
+- **Verification at milestone boundaries**: brief fixture ingested end-to-end
+  offline (story_123 AMBER + both CTA-mismatch findings with json_paths;
+  re-run skips both stories via content-hash cache); all dashboard routes
+  render against a real store; injection pair proven by test.
 
 ### Key prompts used (excerpts)
 
