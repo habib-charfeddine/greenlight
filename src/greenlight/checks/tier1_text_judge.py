@@ -129,10 +129,38 @@ class _T1Finding(BaseModel):
 
 
 class _T1Response(BaseModel):
-    findings: list[_T1Finding]
+    findings: list[dict]          # validated per item — see salvage_findings
     abstain: bool
     abstain_reason: str | None = None
     headline: str = ""
+
+
+def salvage_findings(items: list[dict], model_cls) -> tuple[list, int]:
+    """Validate judge findings ONE AT A TIME, clipping sloppy strings first.
+
+    A single over-long summary must not invalidate the whole response — that
+    would silently drop a valid P0 sibling. Strings are clipped to their
+    limits, confidence is clamped to [0, 1]; findings that still fail (wrong
+    types, missing fields) are dropped and counted.
+    """
+    valid, dropped = [], 0
+    for item in items:
+        if not isinstance(item, dict):
+            dropped += 1
+            continue
+        cleaned = dict(item)
+        for field_name, limit in (("summary", 250), ("evidence_excerpt", 250),
+                                  ("suggested_fix", 350)):
+            v = cleaned.get(field_name)
+            if isinstance(v, str) and len(v) > limit:
+                cleaned[field_name] = v[: limit - 3] + "..."
+        if isinstance(cleaned.get("confidence"), (int, float)):
+            cleaned["confidence"] = max(0.0, min(1.0, float(cleaned["confidence"])))
+        try:
+            valid.append(model_cls.model_validate(cleaned))
+        except ValidationError:
+            dropped += 1
+    return valid, dropped
 
 
 @dataclass
@@ -184,6 +212,7 @@ def run(story: Story, ctx: CheckContext, llm: LLMClient, story_hash: str) -> T1R
         user_content=build_user(story, ctx.policy, ctx.today.isoformat()),
         schema=OUTPUT_SCHEMA,
         content_hash=story_hash,
+        policy_version=ctx.policy.policy_version,
         story_id=story.story_id,
     )
     if resp.data is None:
@@ -205,7 +234,14 @@ def run(story: Story, ctx: CheckContext, llm: LLMClient, story_hash: str) -> T1R
         )
 
     findings: list[Finding] = []
-    valid = [f for f in parsed.findings if f.check_id in DEFAULT_SEVERITY]
+    salvaged, dropped = salvage_findings(parsed.findings, _T1Finding)
+    valid = [f for f in salvaged if f.check_id in DEFAULT_SEVERITY]
+    if dropped:
+        findings.append(make_finding(
+            ctx, "T1.judge_error",
+            f"{dropped} judge finding(s) failed schema validation and were dropped",
+            severity="P3", tier=1, model=resp.model,
+            prompt_version=resp.prompt_version))
     per_finding_cost = round(resp.cost_usd / len(valid), 6) if valid else 0.0
     for jf in valid:
         findings.append(make_finding(

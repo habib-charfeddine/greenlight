@@ -46,7 +46,7 @@
 | P0/P1 catch rate (seeded) | 100% (23/23) |
 | Flag rate on clean stories | 0% (0/24) |
 | Human review load (AMBER+RED, all stories) | 35% |
-| Median latency / story | 11274 ms |
+| Median latency / story | 10882 ms |
 | Mean cost / story | $0.0000 |
 | Cost per 1k stories | $0.00 |
 
@@ -66,4 +66,4 @@ Catalog checks never exercised by a seeded defect — recall is unknown for thes
 
 ## Replay provenance
 
-Replay cache ai_replay.jsonl: 64 entries (64 hand_authored). Hand-authored entries demonstrate pipeline plumbing, not model skill — live-recorded numbers replace them after a --live run.
+Replay cache ai_replay.jsonl: 122 entries (122 hand_authored). Hand-authored entries demonstrate pipeline plumbing, not model skill — live-recorded numbers replace them after a --live run.

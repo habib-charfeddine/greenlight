@@ -284,7 +284,9 @@ def _build_report(args: argparse.Namespace, scores: dict[str, CheckScore],
         f"- stories: {n_labeled} labeled, {overall['verdict_count']} verdicts",
         f"- tenants: {EVAL_TENANTS}, defect rate: {EVAL_DEFECT_RATE}",
         f"- date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')} (UTC)",
-        "- mode: replay (offline; external hosts UNVERIFIABLE by design)",
+        ("- mode: live (Anthropic API, responses recorded to the replay cache)"
+         if getattr(args, "live", False) else
+         "- mode: replay (offline; external hosts UNVERIFIABLE by design)"),
         "",
         "## Per-check scores",
         "",
@@ -341,6 +343,9 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--db", default=None,
                         help="store db path; default is a fresh temp db "
                              "(never the production greenlight.db)")
+    parser.add_argument("--live", action="store_true",
+                        help="call the Anthropic API (records responses into "
+                             "the replay cache); default is offline replay")
     return parser.parse_args(argv)
 
 
@@ -369,7 +374,7 @@ def _run_pipeline(args: argparse.Namespace, out_dir: Path,
     server = serve_world(out_dir, args.port)
     try:
         engine = Engine(settings=settings, tenants=tenants, store=store,
-                        mode="replay")
+                        mode="live" if args.live else "replay")
         verdicts = engine.process_feed_path(str(world.feed_path))
     finally:
         server.shutdown()

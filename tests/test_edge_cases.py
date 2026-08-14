@@ -111,6 +111,72 @@ def test_malformed_feed_json_raises_feed_error_keeps_cursor(engine, tmp_path):
     assert engine.store.get_cursor("tenant_antarctic_league_001") == "2026-08-13T00:00:00Z"
 
 
+def test_disabled_check_cannot_trigger_vision_escalation(engine, settings, tmp_path):
+    """Review finding: escalation used to see raw findings, so a tenant's
+    kill-switched check could still buy a Tier-2 vision call."""
+    from greenlight.policy import EffectivePolicy, TenantPolicy
+    tenant = TenantPolicy(
+        tenant_id="kill_t", tenant_name="Kill Switch FC",
+        policy_version="ks-1", allowed_domains=["localhost"],
+        disabled_checks=["T0.placeholder_text"])
+    policy = EffectivePolicy(settings, tenant)
+    story = make_story(story_id="killswitch",
+                       story_title="Ticket info TBD for the derby")
+    v = engine.process_story(story, policy)
+    assert not any(f.check_id == "T0.placeholder_text" for f in v.findings)
+    assert engine.store.get_verdict("killswitch")["escalated_by"] in (None, "sample")
+
+
+def test_clean_zero_finding_story_is_skipped_on_rerun(settings, tmp_path):
+    """Regression (review finding): clean GREEN stories were re-judged every
+    poll because the judged marker recorded an empty policy_version.
+
+    A truly zero-finding story needs OK fetches on everything, so the asset
+    (a sharp, correctly-sized noise image) and CTA stub are served via respx.
+    """
+    import io
+    import json as _json
+    import os
+
+    import httpx
+    import respx
+    from PIL import Image
+
+    from greenlight.engine import Engine
+    from greenlight.llm import replay_key
+    from greenlight.models import content_hash
+    from greenlight.policy import EffectivePolicy
+
+    noise = Image.frombytes("RGB", (1080, 1920), os.urandom(1080 * 1920 * 3))
+    buf = io.BytesIO()
+    noise.save(buf, format="JPEG", quality=90)
+
+    s = dict(settings)
+    s["replay_cache"] = str(tmp_path / "replay.jsonl")
+    story = make_story(story_id="clean_green")
+    cfg = s["models"]["tier1"]
+    entry = {"key": replay_key(cfg["model"], cfg["prompt_version"],
+                               "afl-2026.08.1", content_hash(story)),
+             "source": "hand_authored", "cost_usd": 0.0, "latency_ms": 0,
+             "response": {"findings": [], "abstain": False, "headline": ""}}
+    (tmp_path / "replay.jsonl").write_text(_json.dumps(entry) + "\n", encoding="utf-8")
+
+    store = Store(tmp_path / "c.db", tmp_path / "a.jsonl", tmp_path / "f.jsonl")
+    eng = Engine(s, load_tenants(REPO / "config" / "tenants"), store, mode="replay")
+    afl = EffectivePolicy(s, load_tenants(REPO / "config" / "tenants")["tenant_antarctic_league_001"])
+    with respx.mock:
+        respx.get("http://localhost:8100/assets/story_t1/page_1.jpg").mock(
+            return_value=httpx.Response(200, headers={"content-type": "image/jpeg"},
+                                        content=buf.getvalue()))
+        respx.get("http://localhost:8100/site/match-report").mock(
+            return_value=httpx.Response(200, content=b"<html>ok</html>"))
+        first = eng.process_story(story, afl)
+        assert first is not None and first.findings == []   # genuinely clean
+        assert first.verdict == "GREEN"
+        assert eng.process_story(story, afl) is None        # skipped: cached
+    eng.close()
+
+
 def test_gate_mode_other_than_advisory_is_roadmap(engine, settings):
     from greenlight.policy import TenantPolicy
     engine.tenants["strict_t"] = TenantPolicy(

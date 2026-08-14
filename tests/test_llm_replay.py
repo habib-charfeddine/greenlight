@@ -24,20 +24,60 @@ def test_replay_cache_roundtrip_and_last_write_wins(tmp_path):
 def test_judge_replay_hit_returns_recorded_data(settings, tmp_path):
     p = tmp_path / "replay.jsonl"
     cfg = settings["models"]["tier1"]
-    key = replay_key(cfg["model"], cfg["prompt_version"], "hash123")
+    key = replay_key(cfg["model"], cfg["prompt_version"], "pol-1", "hash123")
     _seed(p, key, {"findings": [], "abstain": False, "headline": ""})
     llm = LLMClient(settings, mode="replay", replay_path=p)
     resp = llm.judge(tier="tier1", system_text="sys", user_content="u",
-                     schema={}, content_hash="hash123", story_id="s")
+                     schema={}, content_hash="hash123", policy_version="pol-1",
+                     story_id="s")
     assert resp.data == {"findings": [], "abstain": False, "headline": ""}
     assert resp.cost_usd == 0.0123
     assert llm.stats["replay_hits"] == 1
 
 
+def test_policy_version_is_part_of_the_key(settings, tmp_path):
+    """Judgments recorded under one tenant policy must not replay under
+    another — the policy text is baked into the judge's system prompt."""
+    p = tmp_path / "replay.jsonl"
+    cfg = settings["models"]["tier1"]
+    key = replay_key(cfg["model"], cfg["prompt_version"], "pol-OLD", "hash123")
+    _seed(p, key, {"findings": [], "abstain": False, "headline": ""})
+    llm = LLMClient(settings, mode="replay", replay_path=p)
+    resp = llm.judge(tier="tier1", system_text="sys", user_content="u",
+                     schema={}, content_hash="hash123",
+                     policy_version="pol-NEW", story_id="s")
+    assert resp.source == "replay_miss"
+
+
+def test_live_mode_never_trusts_hand_authored_entries(settings, tmp_path, monkeypatch):
+    """A hand-authored seed must not shadow a real API judgment in --live."""
+    p = tmp_path / "replay.jsonl"
+    cfg = settings["models"]["tier1"]
+    key = replay_key(cfg["model"], cfg["prompt_version"], "pol-1", "hash123")
+    _seed(p, key, {"findings": [], "abstain": False, "headline": ""},
+          source="hand_authored")
+    llm = LLMClient(settings, mode="live", replay_path=p)
+    called = {}
+    monkeypatch.setattr(llm, "_live_call",
+                        lambda *a, **k: called.setdefault("live", True))
+    llm.judge(tier="tier1", system_text="sys", user_content="u",
+              schema={}, content_hash="hash123", policy_version="pol-1",
+              story_id="s")
+    assert called.get("live")  # went to the API, not the seed
+    # ...but a recorded live entry IS reused (idempotent re-runs stay free)
+    _seed(p, key, {"findings": [], "abstain": False, "headline": ""}, source="live")
+    llm2 = LLMClient(settings, mode="live", replay_path=p)
+    resp = llm2.judge(tier="tier1", system_text="sys", user_content="u",
+                      schema={}, content_hash="hash123", policy_version="pol-1",
+                      story_id="s")
+    assert resp.source == "live"
+
+
 def test_judge_replay_miss_degrades_without_network(settings, tmp_path):
     llm = LLMClient(settings, mode="replay", replay_path=tmp_path / "empty.jsonl")
     resp = llm.judge(tier="tier1", system_text="sys", user_content="u",
-                     schema={}, content_hash="nope", story_id="s")
+                     schema={}, content_hash="nope", policy_version="p",
+                     story_id="s")
     assert resp.data is None
     assert resp.source == "replay_miss"
     assert llm.stats["replay_misses"] == 1

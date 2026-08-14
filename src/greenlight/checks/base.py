@@ -86,6 +86,8 @@ class FetchResult:
     content: bytes | None = None      # populated by fetch_bytes/fetch_file
     path: Path | None = None          # populated by fetch_file
     error: str | None = None
+    truncated: bool = False           # body cut at fetch_max_bytes — content
+                                      # checks must skip, not misdiagnose
 
 
 @dataclass
@@ -154,13 +156,17 @@ class CheckContext:
                     ctype = r.headers.get("content-type", "").split(";")[0].strip() or None
                     if 200 <= status < 400:
                         body = b""
+                        truncated = False
                         for chunk in r.iter_bytes(chunk_size=65536):
                             body += chunk
                             if not read_body and len(body) >= 1024:
                                 break
                             if len(body) >= max_bytes:
+                                truncated = True
+                                body = body[:max_bytes]
                                 break
-                        return FetchResult("OK", status, ctype, content=body)
+                        return FetchResult("OK", status, ctype, content=body,
+                                           truncated=truncated and read_body)
                     if status in _UNVERIFIABLE_STATUSES:
                         return FetchResult("UNVERIFIABLE", status, ctype,
                                            error=f"HTTP {status} (bot-blocked/auth)")

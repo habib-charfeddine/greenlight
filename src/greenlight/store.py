@@ -104,9 +104,19 @@ class Store:
         )
         return cur.fetchone() is not None
 
-    def save_verdict(self, v: StoryVerdict, story_json: dict,
+    def save_verdict(self, v: StoryVerdict, story_json: dict, *,
+                     policy_version: str,
                      escalated_by: str | None = None,
-                     prompt_version: str = "") -> None:
+                     prompt_version: str = "",
+                     mark_judged: bool = True) -> None:
+        """Persist the latest verdict + audit line.
+
+        ``policy_version`` is passed explicitly — deriving it from findings[0]
+        broke the skip-cache for zero-finding (clean GREEN) stories, which then
+        got re-judged every poll cycle. ``mark_judged=False`` keeps the story
+        eligible for retry next cycle (live-mode AI outage: Tier 0 verdict
+        stands, AI work stays queued).
+        """
         payload = v.model_dump(mode="json")
         with self._lock:
             self._conn.execute(
@@ -125,7 +135,7 @@ class Store:
                        escalated_by=excluded.escalated_by, headline=excluded.headline""",
                 (
                     v.story_id, v.tenant_id, v.content_hash,
-                    payload["findings"][0]["policy_version"] if payload["findings"] else "",
+                    policy_version,
                     prompt_version, v.verdict, v.score, payload["checked_at"],
                     v.pipeline_version, v.totals.get("cost_usd", 0.0),
                     v.totals.get("latency_ms", 0), json.dumps(payload["findings"]),
@@ -133,28 +143,17 @@ class Store:
                     str(v.totals.get("headline") or ""),
                 ),
             )
-            self._conn.execute(
-                """INSERT OR REPLACE INTO judged (content_hash, policy_version, prompt_version, checked_at)
-                   VALUES (?,?,?,?)""",
-                (v.content_hash,
-                 payload["findings"][0]["policy_version"] if payload["findings"] else "",
-                 prompt_version, payload["checked_at"]),
-            )
+            if mark_judged:
+                self._conn.execute(
+                    """INSERT OR REPLACE INTO judged (content_hash, policy_version, prompt_version, checked_at)
+                       VALUES (?,?,?,?)""",
+                    (v.content_hash, policy_version, prompt_version,
+                     payload["checked_at"]),
+                )
             self._conn.commit()
             with open(self.audit_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps({"type": "verdict", "escalated_by": escalated_by,
                                     **payload}) + "\n")
-
-    def mark_judged(self, content_hash: str, policy_version: str,
-                    prompt_version: str = "") -> None:
-        """Record (hash, policy, prompt) even when no verdict row changes."""
-        with self._lock:
-            self._conn.execute(
-                """INSERT OR REPLACE INTO judged (content_hash, policy_version, prompt_version, checked_at)
-                   VALUES (?,?,?,?)""",
-                (content_hash, policy_version, prompt_version or "", utcnow().isoformat()),
-            )
-            self._conn.commit()
 
     # -- dashboard queries --------------------------------------------------
 

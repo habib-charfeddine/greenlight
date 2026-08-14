@@ -45,8 +45,8 @@ def _hash_image_pages(story: Story, ctx: CheckContext) -> list[PageHash]:
         if page.type != "image" or not page.asset_url:
             continue
         result = ctx.fetch_bytes(page.asset_url)
-        if result.state != "OK" or not result.content:
-            continue
+        if result.state != "OK" or not result.content or result.truncated:
+            continue  # capped downloads would hash garbage
         try:
             img = Image.open(BytesIO(result.content))
             img.load()

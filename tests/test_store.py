@@ -24,6 +24,7 @@ def _verdict(story_id="s1", verdict="AMBER", headline="fix the CTA") -> StoryVer
 def test_verdict_roundtrip_with_headline_and_judged_marker(tmp_path):
     s = _store(tmp_path)
     s.save_verdict(_verdict(), story_json={"story_id": "s1"},
+                   policy_version="afl-2026.08.1",
                    escalated_by="p0p1", prompt_version="pv")
     row = s.get_verdict("s1")
     assert row["verdict"] == "AMBER"
@@ -35,10 +36,32 @@ def test_verdict_roundtrip_with_headline_and_judged_marker(tmp_path):
     assert not s.has_verdict("x" * 64, "afl-2026.08.1", "pv")
 
 
+def test_zero_finding_clean_verdict_still_marks_judged(tmp_path):
+    """Regression (review finding): clean GREEN stories used to write
+    policy_version='' into the judged table and got re-judged every poll."""
+    s = _store(tmp_path)
+    v = _verdict(verdict="GREEN", headline="")
+    v = v.model_copy(update={"findings": []})
+    s.save_verdict(v, story_json={}, policy_version="afl-2026.08.1",
+                   prompt_version="pv")
+    assert s.has_verdict("h" * 64, "afl-2026.08.1", "pv")
+    assert s.get_verdict("s1")["policy_version"] == "afl-2026.08.1"
+
+
+def test_mark_judged_false_keeps_story_retryable(tmp_path):
+    """Live-mode AI outage: the Tier-0 verdict is stored but the story stays
+    unjudged so the next poll retries the AI work (spec: 'AI work queues')."""
+    s = _store(tmp_path)
+    s.save_verdict(_verdict(), story_json={}, policy_version="afl-2026.08.1",
+                   prompt_version="pv", mark_judged=False)
+    assert s.get_verdict("s1") is not None       # verdict shown on the dashboard
+    assert not s.has_verdict("h" * 64, "afl-2026.08.1", "pv")  # but retried
+
+
 def test_upsert_keeps_one_row_per_story(tmp_path):
     s = _store(tmp_path)
-    s.save_verdict(_verdict(verdict="AMBER"), {}, prompt_version="pv")
-    s.save_verdict(_verdict(verdict="RED"), {}, prompt_version="pv")
+    s.save_verdict(_verdict(verdict="AMBER"), {}, policy_version="p", prompt_version="pv")
+    s.save_verdict(_verdict(verdict="RED"), {}, policy_version="p", prompt_version="pv")
     rows = s.latest_verdicts()
     assert len(rows) == 1
     assert rows[0]["verdict"] == "RED"
@@ -72,8 +95,8 @@ def test_cursor_and_asset_hash_memory(tmp_path):
 
 def test_tenant_health_aggregates(tmp_path):
     s = _store(tmp_path)
-    s.save_verdict(_verdict("s1", "GREEN"), {}, prompt_version="pv")
-    s.save_verdict(_verdict("s2", "AMBER"), {}, prompt_version="pv")
+    s.save_verdict(_verdict("s1", "GREEN"), {}, policy_version="p", prompt_version="pv")
+    s.save_verdict(_verdict("s2", "AMBER"), {}, policy_version="p", prompt_version="pv")
     h = s.tenant_health("t1")
     assert h["n"] == 2
     assert h["pass_rate"] == 0.5

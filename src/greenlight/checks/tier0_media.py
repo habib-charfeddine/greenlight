@@ -52,6 +52,16 @@ def _check_image(page: Page, index: int, ctx: CheckContext) -> list[Finding]:
     if result.state != "OK" or not result.content:
         return []  # BROKEN/UNVERIFIABLE is the links module's finding, not ours
     json_path = f"pages[{index}].asset_url"
+    if result.truncated:
+        # A capped download would decode as "corrupt" — that's our cap, not
+        # the tenant's asset. Say so instead of misdiagnosing.
+        return [make_finding(
+            ctx, "T0.image_decodes",
+            "skipped: asset exceeds the fetch-size cap — media quality not assessed",
+            severity="P3",
+            evidence=Evidence(json_path=json_path, url=page.asset_url,
+                              measured=f"fetched={len(result.content)}B (capped)"),
+        )]
     img, error = _decode_pil(result.content)
     if img is None:
         return [
@@ -236,6 +246,14 @@ def _check_video(page: Page, index: int, ctx: CheckContext) -> list[Finding]:
     result = ctx.fetch_file(page.asset_url)
     if result.state != "OK" or result.path is None:
         return []  # BROKEN/UNVERIFIABLE is the links module's finding, not ours
+    if result.truncated:
+        return [make_finding(
+            ctx, "T0.video_probe",
+            "skipped: asset exceeds the fetch-size cap — video checks did not run",
+            severity="P3",
+            evidence=Evidence(json_path=json_path, url=page.asset_url,
+                              measured=f"fetched={len(result.content or b'')}B (capped)"),
+        )]
     findings, duration, has_audio, playable = _video_probe(result.path, page, json_path, ctx)
     if playable:
         findings.extend(_video_black(result.path, duration, page, json_path, ctx))

@@ -49,15 +49,36 @@ def test_abstain_becomes_p3_needs_human_eyes(ctx):
     assert "needs human eyes" in result.findings[0].summary
 
 
-def test_invalid_schema_becomes_p3_not_crash(ctx):
+def test_sloppy_confidence_is_clamped_not_rejected(ctx):
     result = _run(ctx, {"findings": [{"check_id": "T1.tone_style",
                                       "severity": "P2", "confidence": 4.2,  # out of range
                                       "summary": "s", "json_path": "p",
                                       "evidence_excerpt": "e"}],
                         "abstain": False, "headline": ""})
-    assert not result.skipped
-    assert result.findings[0].check_id == "T1.judge_error"
-    assert result.findings[0].severity == "P3"
+    assert result.findings[0].check_id == "T1.tone_style"
+    assert result.findings[0].confidence == 1.0
+
+
+def test_one_broken_finding_does_not_sink_its_valid_siblings(ctx):
+    """Review finding: a single unparseable finding used to invalidate the
+    whole response, silently dropping a valid P0 sibling."""
+    result = _run(ctx, {"findings": [
+        {"check_id": "T1.safety_screen", "severity": "P0", "confidence": 0.95,
+         "summary": "threat in copy", "json_path": "story_title",
+         "evidence_excerpt": "x"},
+        {"check_id": "T1.tone_style", "severity": "P2", "confidence": 0.8,
+         "summary": "y" * 400,  # over any limit -> clipped, kept
+         "json_path": "story_title", "evidence_excerpt": "e"},
+        {"check_id": "T1.coherence"},  # missing required fields -> dropped
+    ], "abstain": False, "headline": "h"})
+    ids = [f.check_id for f in result.findings]
+    assert "T1.safety_screen" in ids          # the P0 survives
+    assert "T1.tone_style" in ids             # clipped, not rejected
+    clipped = next(f for f in result.findings if f.check_id == "T1.tone_style")
+    assert len(clipped.summary) <= 250
+    assert "T1.judge_error" in ids            # the dropped one is noted, P3
+    assert next(f for f in result.findings
+                if f.check_id == "T1.judge_error").severity == "P3"
 
 
 def test_replay_miss_marks_skipped(ctx):

@@ -23,6 +23,14 @@ dev = [
     "respx>=0.21",
 ]
 
+# Mirror of the dev group so the plain-pip path (`pip install -e ".[dev]"`)
+# works too — PEP 735 dependency-groups are uv-only today.
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "respx>=0.21",
+]
+
 [project.scripts]
 greenlight = "greenlight.cli:main"
 

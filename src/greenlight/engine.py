@@ -153,14 +153,19 @@ class Engine:
         else:
             checks_run += 1
 
+        # Kill switch + severity overrides BEFORE the escalation decision: a
+        # disabled or downgraded check must not buy a vision call (review
+        # finding — the trigger used to see raw severities).
+        findings = apply_overrides(findings, policy)
+
         # Tier 2 — escalation / sample / burn-in (rule 4)
         escalated_by = self._tier2_trigger(findings, story_hash, policy)
         t2_cost = 0.0
-        t2_latency = 0
+        t2_source = ""
         if escalated_by:
             t2 = tier2_vision_judge.run(story, ctx, self.llm, story_hash)
-            findings.extend(t2.findings)
-            t2_cost, t2_latency = t2.cost_usd, t2.latency_ms
+            findings.extend(apply_overrides(t2.findings, policy))
+            t2_cost, t2_source = t2.cost_usd, t2.source
             if t2.skipped:
                 checks_skipped += 1
             else:
@@ -168,8 +173,7 @@ class Engine:
 
         checks_skipped += sum(1 for f in findings if f.summary.startswith("skipped:"))
 
-        # Per-tenant kill switch + severity overrides, then synthesis (rules 5)
-        findings = apply_overrides(findings, policy)
+        # Verdict synthesis (rule 5) — deterministic code, not an LLM.
         verdict, score = synthesize(findings, self.settings)
 
         latency_ms = int((time.monotonic() - t_start) * 1000)
@@ -190,9 +194,16 @@ class Engine:
             pipeline_version=str(self.settings.get("pipeline_version", "0.0.0")),
             totals=totals,
         )
+        # A live-mode API failure keeps the story unjudged: the Tier-0 verdict
+        # stands, but the AI work stays queued and retries next cycle
+        # (05 edge-case list: "API 429/500 → backoff then degrade to Tier 0 +
+        # queued flag"). Replay misses are deterministic — no point retrying.
+        ai_degraded = t1.source == "error" or t2_source == "error"
         self.store.save_verdict(v, story_json=story.model_dump(mode="json"),
+                                policy_version=policy.policy_version,
                                 escalated_by=escalated_by,
-                                prompt_version=self.prompt_version)
+                                prompt_version=self.prompt_version,
+                                mark_judged=not ai_degraded)
 
         # Routing (rule 6): RED alerts now; AMBER waits in the queue; GREEN is silent.
         if verdict == "RED":

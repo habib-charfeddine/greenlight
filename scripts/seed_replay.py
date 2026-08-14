@@ -26,21 +26,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))  # greenlig
 
 from greenlight.llm import replay_key  # noqa: E402
 from greenlight.models import Feed, Story, content_hash, utcnow  # noqa: E402
-from greenlight.policy import load_settings  # noqa: E402
+from greenlight.policy import load_settings, load_tenants  # noqa: E402
 
 REPLAY_PATH = Path("fixtures/ai_replay.jsonl")
 
 # Must match eval/run_eval.py defaults exactly — asset URLs embed the port, so
 # the port participates in every story's content hash.
 EVAL_SEED, EVAL_STORIES, EVAL_PORT = 1337, 40, 8199
+# Must match cli.cmd_demo's feedgen invocation (seed 42, port 8100) so the
+# offline demo dashboard shows judge findings instead of replay-miss notes.
+DEMO_SEED, DEMO_STORIES, DEMO_PORT = 42, 40, 8100
+
+
+def _policy_versions() -> dict[str, str]:
+    return {tid: t.policy_version for tid, t in load_tenants().items()}
 
 _PAGE_RE = re.compile(r"pages\[(\d+)\]")
 
 
-def _entry(key: str, model: str, prompt_version: str, story: Story,
-           response: dict) -> dict:
+def _entry(key: str, model: str, prompt_version: str, policy_version: str,
+           story: Story, response: dict) -> dict:
     return {
         "key": key, "model": model, "prompt_version": prompt_version,
+        "policy_version": policy_version,
         "content_hash": content_hash(story), "story_id": story.story_id,
         "source": "hand_authored", "response": response,
         "usage": None, "cost_usd": 0.0, "latency_ms": 0,
@@ -125,6 +133,7 @@ def brief_fixture_entries(settings: dict) -> list[dict]:
     """The brief's own sample data: story_123 carries swapped CTAs."""
     feed = Feed.model_validate(json.loads(
         Path("fixtures/example_from_brief.json").read_text(encoding="utf-8")))
+    policy_version = _policy_versions().get(feed.tenant_id, "unversioned")
     t1 = settings["models"]["tier1"]
     entries = []
     for story in feed.stories:
@@ -143,35 +152,44 @@ def brief_fixture_entries(settings: dict) -> list[dict]:
                     "headline": "Both CTAs point at swapped destinations — 'Buy tickets' "
                                 "opens highlights, 'Watch highlights' opens the match report."
                                 if findings else ""}
-        key = replay_key(t1["model"], t1["prompt_version"], content_hash(story))
-        entries.append(_entry(key, t1["model"], t1["prompt_version"], story, response))
+        key = replay_key(t1["model"], t1["prompt_version"], policy_version,
+                         content_hash(story))
+        entries.append(_entry(key, t1["model"], t1["prompt_version"],
+                              policy_version, story, response))
     return entries
 
 
-def eval_world_entries(settings: dict) -> list[dict]:
-    """T1 entry for EVERY eval-world story; T2 entries where they can fire."""
+def world_entries(settings: dict, *, seed: int, stories: int, port: int) -> list[dict]:
+    """T1 entry for EVERY story of a generated world; T2 where it can fire.
+
+    Used for both the eval world (seed 1337) and the demo world (seed 42) —
+    the offline demo must show judge findings, not replay-miss notes.
+    """
     from feedgen.generate import generate_world
     from greenlight.engine import _sample_from_hash
 
     with tempfile.TemporaryDirectory(prefix="greenlight-seed-") as td:
-        world = generate_world(Path(td), seed=EVAL_SEED, stories=EVAL_STORIES,
-                               tenants=2, defect_rate=0.35, port=EVAL_PORT)
+        world = generate_world(Path(td), seed=seed, stories=stories,
+                               tenants=2, defect_rate=0.35, port=port)
         feeds = json.loads(Path(world.feed_path).read_text(encoding="utf-8"))
         labels = json.loads(Path(world.labels_path).read_text(encoding="utf-8"))
 
     t1, t2 = settings["models"]["tier1"], settings["models"]["tier2"]
     rate = float(settings.get("vision_sample_rate", 0.15))
+    versions = _policy_versions()
     entries = []
     for feed_raw in feeds:
-        for story in Feed.model_validate(feed_raw).stories:
+        feed = Feed.model_validate(feed_raw)
+        policy_version = versions.get(feed.tenant_id, "unversioned")
+        for story in feed.stories:
             story_labels = labels.get(story.story_id, [])
             h = content_hash(story)
 
             t1_findings = [_t1_finding(l["check_id"], story, l.get("json_path", ""))
                            for l in story_labels if l["check_id"].startswith("T1.")]
             entries.append(_entry(
-                replay_key(t1["model"], t1["prompt_version"], h),
-                t1["model"], t1["prompt_version"], story,
+                replay_key(t1["model"], t1["prompt_version"], policy_version, h),
+                t1["model"], t1["prompt_version"], policy_version, story,
                 {"findings": t1_findings, "abstain": False,
                  "headline": _headline(t1_findings)}))
 
@@ -182,8 +200,8 @@ def eval_world_entries(settings: dict) -> list[dict]:
                 t2_findings = [_t2_finding(l["check_id"], story, l.get("json_path", ""))
                                for l in t2_labels]
                 entries.append(_entry(
-                    replay_key(t2["model"], t2["prompt_version"], h),
-                    t2["model"], t2["prompt_version"], story,
+                    replay_key(t2["model"], t2["prompt_version"], policy_version, h),
+                    t2["model"], t2["prompt_version"], policy_version, story,
                     {"findings": t2_findings, "abstain": False}))
     return entries
 
@@ -191,7 +209,8 @@ def eval_world_entries(settings: dict) -> list[dict]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--world", action="store_true",
-                    help="also seed the eval world (requires feedgen module)")
+                    help="also seed the eval world (seed 1337) and the demo "
+                         "world (seed 42) — requires the feedgen module")
     args = ap.parse_args()
 
     settings = load_settings()
@@ -204,7 +223,10 @@ def main() -> None:
 
     fresh = brief_fixture_entries(settings)
     if args.world:
-        fresh += eval_world_entries(settings)
+        fresh += world_entries(settings, seed=EVAL_SEED, stories=EVAL_STORIES,
+                               port=EVAL_PORT)
+        fresh += world_entries(settings, seed=DEMO_SEED, stories=DEMO_STORIES,
+                               port=DEMO_PORT)
 
     added = kept_live = replaced = 0
     for e in fresh:

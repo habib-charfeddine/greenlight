@@ -120,7 +120,7 @@ class _T2Finding(BaseModel):
 
 
 class _T2Response(BaseModel):
-    findings: list[_T2Finding]
+    findings: list[dict]          # validated per item via salvage_findings
     abstain: bool
     abstain_reason: str | None = None
 
@@ -202,7 +202,7 @@ def collect_images(story: Story, ctx: CheckContext) -> list[_JudgeImage]:
             break
         if page.type == "image" and page.asset_url:
             result = ctx.fetch_bytes(page.asset_url)
-            if result.state != "OK" or not result.content:
+            if result.state != "OK" or not result.content or result.truncated:
                 continue
             b64 = _downscale_to_jpeg_b64(result.content)
             if b64:
@@ -214,7 +214,7 @@ def collect_images(story: Story, ctx: CheckContext) -> list[_JudgeImage]:
                 break
             if page.type == "video" and page.asset_url:
                 result = ctx.fetch_file(page.asset_url)
-                if result.state != "OK" or not result.path:
+                if result.state != "OK" or not result.path or result.truncated:
                     continue
                 frames = _extract_keyframes(result.path, ctx)
                 scored = sorted(((_score_frame(raw), ts, raw) for ts, raw in frames),
@@ -276,6 +276,7 @@ def run(story: Story, ctx: CheckContext, llm: LLMClient, story_hash: str) -> T2R
         user_content=build_user_content(story, images),
         schema=OUTPUT_SCHEMA,
         content_hash=story_hash,
+        policy_version=ctx.policy.policy_version,
         story_id=story.story_id,
     )
     if resp.data is None:
@@ -296,7 +297,15 @@ def run(story: Story, ctx: CheckContext, llm: LLMClient, story_hash: str) -> T2R
         )
 
     findings: list[Finding] = []
-    valid = [f for f in parsed.findings if f.check_id in DEFAULT_SEVERITY]
+    from .tier1_text_judge import salvage_findings
+    salvaged, dropped = salvage_findings(parsed.findings, _T2Finding)
+    valid = [f for f in salvaged if f.check_id in DEFAULT_SEVERITY]
+    if dropped:
+        findings.append(make_finding(
+            ctx, "T2.judge_error",
+            f"{dropped} judge finding(s) failed schema validation and were dropped",
+            severity="P3", tier=2, model=resp.model,
+            prompt_version=resp.prompt_version))
     per_finding_cost = round(resp.cost_usd / len(valid), 6) if valid else 0.0
     for jf in valid:
         findings.append(make_finding(

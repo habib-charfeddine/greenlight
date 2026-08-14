@@ -43,11 +43,18 @@ everything) → Tier 1 text judge (Haiku-class, one structured-output call per
 story) → Tier 2 vision judge (Sonnet-class, only on escalation / 15% sample /
 tenant burn-in) → **deterministic verdict synthesis** (severity × confidence,
 precision-first) → routing (RED → Slack-shaped webhook now; AMBER → review
-queue; P2 → digest; GREEN → stored) → a **triage dashboard** with per-finding
-evidence and Confirm/Dismiss feedback → a **self-scoring eval** that seeds
-known defects and measures precision/recall/cost on every run.
+queue; P2/P3 → stored, visible in case files and tenant health — a dedicated
+daily-digest view is on the spec's cut list and not built) → a **triage
+dashboard** with per-finding evidence and Confirm/Dismiss feedback → a
+**self-scoring eval** that seeds known defects and measures
+precision/recall/cost on every run.
 
 ## Quickstart
+
+Prerequisites: Python 3.11+, **ffmpeg/ffprobe on PATH** (`apt-get install
+ffmpeg` / `brew install ffmpeg` / `winget install Gyan.FFmpeg`) — the mock feed
+synthesizes real videos. Without ffmpeg the pipeline's video checks degrade to
+SKIPPED, but the demo world generator needs it.
 
 ```bash
 git clone <repo> && cd greenlight
@@ -74,7 +81,7 @@ scoring rules in [eval/report.md](eval/report.md)):
 | P0/P1 catch rate (seeded defects) | **100%** (23/23) |
 | Flag rate on clean stories | **0%** (0/24) |
 | Human review load (AMBER+RED, all stories) | 35% *(the eval world is 40% seeded by design; the clean-world figure is the 0% above)* |
-| Median latency / story | 11,274 ms *(offline, single-threaded, dominated by per-video ffmpeg subprocess spawns; image-only stories run ~1–2s — workers parallelize this later)* |
+| Median latency / story | 10,882 ms *(offline, single-threaded, dominated by per-video ffmpeg subprocess spawns; image-only stories run ~1–2s — workers parallelize this later)* |
 | Per-check recall / precision | 100% / 100% on all 28 seeded checks after tuning (see below) |
 
 Every one of the catalog's 28 seeded defect classes is caught with the labeled
@@ -89,8 +96,10 @@ why: the true re-published pair sits at Hamming 0, while clean stories sharing
 the tenant's house template floor at 6–8, so the catalog's `near ≤ 8` default
 is too loose for template-driven sport content. `phash_near_hamming` 8 → 5
 (measurement documented in `config/settings.yaml`) took the clean flag rate
-17% → 0% with catch rate still 100%. That threshold is synthetic-world-tuned:
-re-measure on real tenant media before trusting it.
+17% → 0% with catch rate still 100%. That threshold is synthetic-world-tuned —
+and the synthetic assets render with whatever fonts the machine has, so exact
+pHash distances are platform-dependent; re-run `make eval` locally to re-derive,
+and re-measure on real tenant media before trusting it in production.
 
 **Honesty notes.**
 - Replay-mode Tier-1/2 rows are backed by **hand-authored** replay fixtures

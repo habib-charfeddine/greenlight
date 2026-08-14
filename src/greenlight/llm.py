@@ -14,10 +14,13 @@ Verified against SDK 0.122.0 at build time (2026-08-14):
   WITHOUT a cache discount.
 
 Replay cache (``fixtures/ai_replay.jsonl``): one JSON line per judge response,
-keyed sha256(model + prompt_version + content_hash). ``source`` marks each entry
-``hand_authored`` (seeded so offline demos show the case) or ``live`` (recorded
-from a real API call). Replay mode never touches the network; live mode records
-every response back into the cache.
+keyed sha256(model + prompt_version + policy_version + content_hash) — the
+policy_version is in the key because the tenant policy is rendered into the
+judge's system prompt, so a policy change must invalidate cached judgments.
+``source`` marks each entry ``hand_authored`` (seeded so offline demos show the
+case) or ``live`` (recorded from a real API call). Replay mode never touches
+the network and accepts any entry; live mode only trusts ``source: live``
+entries — hand-authored seeds must never shadow a real API judgment.
 """
 from __future__ import annotations
 
@@ -46,8 +49,11 @@ class JudgeResponse:
     error: str | None = None
 
 
-def replay_key(model: str, prompt_version: str, content_hash: str) -> str:
-    return hashlib.sha256(f"{model}|{prompt_version}|{content_hash}".encode()).hexdigest()
+def replay_key(model: str, prompt_version: str, policy_version: str,
+               content_hash: str) -> str:
+    return hashlib.sha256(
+        f"{model}|{prompt_version}|{policy_version}|{content_hash}".encode()
+    ).hexdigest()
 
 
 class ReplayCache:
@@ -106,15 +112,19 @@ class LLMClient:
         user_content: list[dict] | str,
         schema: dict,
         content_hash: str,
+        policy_version: str,
         story_id: str,
     ) -> JudgeResponse:
         cfg = self.settings["models"][tier]
         model = cfg["model"]
         prompt_version = cfg["prompt_version"]
-        key = replay_key(model, prompt_version, content_hash)
+        key = replay_key(model, prompt_version, policy_version, content_hash)
 
         cached = self.replay.get(key)
-        if cached is not None:
+        # Live mode only trusts recorded API responses; a hand-authored seed
+        # must never stand in for a real judgment when the API is available.
+        if cached is not None and (self.mode == "replay"
+                                   or cached.get("source") == "live"):
             self.stats["replay_hits"] += 1
             return JudgeResponse(
                 data=cached.get("response"),
@@ -135,13 +145,14 @@ class LLMClient:
 
         return self._live_call(tier, cfg, model, prompt_version, key,
                                system_text, user_content, schema,
-                               content_hash, story_id)
+                               content_hash, policy_version, story_id)
 
     # -- live path ----------------------------------------------------------
 
     def _live_call(self, tier: str, cfg: dict, model: str, prompt_version: str,
                    key: str, system_text: str, user_content: list[dict] | str,
-                   schema: dict, content_hash: str, story_id: str) -> JudgeResponse:
+                   schema: dict, content_hash: str, policy_version: str,
+                   story_id: str) -> JudgeResponse:
         import anthropic
 
         if self._client is None:
@@ -203,6 +214,7 @@ class LLMClient:
             "key": key,
             "model": model,
             "prompt_version": prompt_version,
+            "policy_version": policy_version,
             "content_hash": content_hash,
             "story_id": story_id,
             "source": "live",
