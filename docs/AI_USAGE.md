@@ -84,10 +84,32 @@ at milestone boundaries, and honesty control (no invented numbers).
 
 ### Key prompts used (excerpts)
 
-1. The kickoff prompt (from the kit's `08_MASTER_PROMPT.md`): build per spec,
-   offline-first replay mode, never invent eval numbers, mark hand-authored
-   replay entries, self-check acceptance criteria after M2/M5.
-   *(Further prompts appended as used.)*
+1. **Kickoff** (the kit's `08_MASTER_PROMPT.md`): build per spec, offline-first
+   replay mode, never invent eval numbers, mark hand-authored replay entries,
+   self-check acceptance criteria after M2/M5.
+2. **Module fan-out**: six parallel sub-agents, each given the frozen contract
+   files, the exact spec sections, a "write only your files / report deviations
+   instead of fixing contracts" rule, and a required integration-notes report.
+   Those reports caught the silent-video spec discrepancy before integration.
+3. **Precision pass** (the kit's follow-up #3, executed after the first eval):
+   "show the lowest-precision checks, propose a threshold tweak, apply, re-run,
+   show before/after" — executed with a measured pHash-distance distribution
+   rather than guesswork; before/after in the README results section.
+4. **Injection proof** (follow-up #4): test asserting the seeded injection is
+   flagged and cannot improve a verdict, plus a schema-firewall test where a
+   fake "approved" check_id is dropped by the enum.
+5. **Pre-submit review** (follow-up #6): a second multi-agent workflow — five
+   skeptical finders (correctness, spec compliance, fresh-clone
+   reproducibility, honesty audit, runtime probing) whose findings were each
+   adversarially verified by a refuting agent before any fix was applied.
+
+### What a human should verify before submitting
+
+- Model IDs and prices in `config/settings.yaml` against the console; then run
+  the live-fire step (follow-up #2) to replace hand-authored replay entries.
+- Record the demo GIF (`make demo` → queue → story_123 → /metrics) — the
+  README placeholder is waiting for it.
+- The email draft, timebox statement, and IBAN/BIC (07_SUBMISSION.md).
 
 ## AI at runtime
 

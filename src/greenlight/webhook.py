@@ -12,13 +12,23 @@ import httpx
 from .models import StoryVerdict
 
 
+def _console_safe(line: str) -> str:
+    """Console encodings vary (cp1252 on stock Windows); story titles can carry
+    emoji. Alerting must never crash the pipeline over a code point."""
+    import sys
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    return line.encode(encoding, errors="replace").decode(encoding)
+
+
 def build_payload(verdict: StoryVerdict, story_title: str) -> dict:
     top = next((f for f in verdict.findings if f.severity == "P0"),
                verdict.findings[0] if verdict.findings else None)
     lines = [f"*{f.severity}* `{f.check_id}` — {f.summary}"
              for f in verdict.findings if f.severity in ("P0", "P1")][:5]
     return {
-        "text": f"🔴 RED: “{story_title}” ({verdict.story_id}) — "
+        # :red_circle: is Slack's ASCII shortcode — renders as the emoji there,
+        # stays encoding-safe everywhere else.
+        "text": f":red_circle: RED: \"{story_title}\" ({verdict.story_id}) — "
                 f"{top.summary if top else 'see case file'}",
         "blocks": [
             {"type": "section", "text": {"type": "mrkdwn",
@@ -32,7 +42,7 @@ def build_payload(verdict: StoryVerdict, story_title: str) -> dict:
 
 def send_red_alert(verdict: StoryVerdict, story_title: str, settings: dict) -> None:
     payload = build_payload(verdict, story_title)
-    print(f"[RED ALERT] {json.dumps(payload['text'], ensure_ascii=False)}")
+    print(_console_safe(f"[RED ALERT] {json.dumps(payload['text'], ensure_ascii=False)}"))
     url = (settings.get("webhook") or {}).get("url")
     if not url:
         return
