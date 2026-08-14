@@ -15,8 +15,8 @@ Variant catalog (05_DATA_AND_EVAL.md "Asset synthesis"):
           (same params as its base + brightness +6/255), truncated (clean
           jpg cut to the first 40% of bytes)
   videos: clean (8s 540x960 + sine), black_open (3s black then content),
-          silent (no audio stream), stub (0.4s), corrupt (clean file cut
-          to the first 30% of bytes)
+          silent (digital-silence audio track — volumedetect territory),
+          stub (0.4s), corrupt (clean file cut to the first 30% of bytes)
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
-_CACHE_VERSION = "1"
+_CACHE_VERSION = "2"   # bump whenever a variant's render command changes
 
 IMAGE_SIZE = (1080, 1920)
 TINY_SIZE = (320, 568)
@@ -274,8 +274,14 @@ def _render_video(out_path: Path, variant: str, club: str, vseed: int) -> None:
                       "-map", "0:v", "-map", "1:a",
                       *_ENCODE, *_AUDIO, "-shortest", str(tmp)]
     elif variant == "silent":
+        # A digital-silence AUDIO TRACK, not -an: T0.video_silent measures
+        # volumedetect on an existing stream (catalog wording); a missing
+        # stream is video_probe's no-audio P2 instead — different defect.
         cmd = base + ["-f", "lavfi", "-i", _gradients_src(VIDEO_SECONDS, club, vseed),
-                      "-an", *_ENCODE, str(tmp)]
+                      "-f", "lavfi", "-i",
+                      f"anullsrc=r=44100:cl=mono:d={VIDEO_SECONDS}",
+                      "-map", "0:v", "-map", "1:a",
+                      *_ENCODE, *_AUDIO, "-shortest", str(tmp)]
     elif variant == "stub":
         cmd = base + ["-f", "lavfi", "-i", _gradients_src(STUB_SECONDS, club, vseed),
                       "-f", "lavfi", "-i", _sine_src(STUB_SECONDS),

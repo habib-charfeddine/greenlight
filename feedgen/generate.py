@@ -395,7 +395,9 @@ def _entry_r18_date(profile, rng, port):
     fixture date encoded in the category -> T0.date_logic."""
     title = f"{profile.matchday_word} build-up: {profile.abbrs[0]} {profile.sep} {profile.abbrs[1]}"
     spec = _base_spec(profile, rng, title=title, publish_shift=2)
-    spec.labels = [_lab("T0.date_logic", "context.publish_date")]
+    # The check's evidence points at the fixture category carrying the event
+    # date (index 2 in _base_spec's [club_a, club_b, fixture] layout).
+    spec.labels = [_lab("T0.date_logic", "context.categories[2]")]
     return [spec]
 
 
