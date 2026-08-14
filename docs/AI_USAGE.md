@@ -81,6 +81,41 @@ at milestone boundaries, and honesty control (no invented numbers).
   argument order and made the demo stop loudly when any child dies. Lesson
   recorded here deliberately: unit tests validated every component, and the
   one thing that broke was the glue that only an end-to-end run exercises.
+- **Bug found only by a fresh-clone run on a cp1252 console**: the RED-alert
+  print carried a literal 🔴, which raises UnicodeEncodeError on stock Windows
+  consoles — crashing the pipeline on its first RED verdict. Console output is
+  now encoding-safe; the Slack payload uses the ASCII `:red_circle:` shortcode.
+- **Adversarial pre-submit review** (five skeptical finder agents, each finding
+  re-verified by a refuting agent before any fix). Confirmed and fixed:
+  1. *Clean GREEN stories were re-judged every poll* — the judged-marker
+     derived its policy_version from `findings[0]`, which is empty for clean
+     stories. Now passed explicitly; regression tests at store and engine level.
+  2. *Replay cache ignored tenant policy* — the key was
+     (model, prompt_version, content_hash) while the policy text is baked into
+     the judge's system prompt; a policy bump would have replayed stale
+     judgments, and live mode consulted the cache before checking mode, so
+     hand-authored seeds could shadow real API calls. Key now includes
+     policy_version; live mode only trusts `source: live` entries.
+  3. *Tenant kill switches couldn't stop vision spend* — escalation was
+     computed on raw findings before `apply_overrides`; a disabled check could
+     still buy a Tier-2 call. Overrides now apply before the trigger.
+  4. *Capped downloads misdiagnosed as corrupt* — a >25MiB asset was truncated
+     at the fetch cap and would fail image decode as if the tenant's file were
+     broken. Truncation is now tracked and reported as a skip, never a defect.
+  5. *Live API outages permanently swallowed AI checks* — errors marked the
+     story judged, so it was never retried. Degraded stories now keep their
+     Tier-0 verdict but stay queued for AI retry next cycle (05 edge-case list).
+  6. *One sloppy judge finding sank its valid siblings* — whole-response
+     validation dropped a valid P0 when a sibling had an over-long string.
+     Findings are now validated individually (strings clipped, confidence
+     clamped, hopeless ones dropped and counted).
+  Plus backlog items: `greenlight eval --live` wasn't wired through, the pip
+  fallback install path couldn't see dev deps, the README overclaimed a digest
+  view the spec's cut list defers, the offline demo world had no replay
+  coverage (every story showed "judge unavailable"), and the eval's exact
+  pHash numbers are font/platform-dependent — all fixed or reworded.
+  Two review claims were refuted by the verifiers (they described pre-fix
+  code) and correctly not "fixed" twice.
 
 ### Key prompts used (excerpts)
 
