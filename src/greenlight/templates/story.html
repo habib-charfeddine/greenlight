@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ story_title }} - Greenlight{% endblock %}
+{% block content %}
+<div class="crumbs"><a href="/">Queue</a> / <span class="mono">{{ story_id }}</span></div>
+<div class="case">
+  <section class="media-rail">
+    {% for p in pages %}
+    <figure class="page-card" data-media>
+      {% if p.type == "video" %}
+      <video controls preload="metadata" src="{{ p.asset_url }}"></video>
+      {% elif p.asset_url %}
+      <img src="{{ p.asset_url }}" alt="{{ p.page_id }}" data-fallback>
+      {% endif %}
+      <div class="asset-fallback">asset unreachable</div>
+      <figcaption>
+        <span class="mono">{{ p.page_id }}</span> - {{ p.type }}
+        {% if p.cta %}<span class="cta-label">CTA: "{{ p.cta }}"</span>{% endif %}
+      </figcaption>
+    </figure>
+    {% else %}
+    <p class="muted">No pages in this story.</p>
+    {% endfor %}
+  </section>
+  <section class="case-right">
+    <div class="verdict-head">
+      <span class="chip chip-{{ verdict|lower }} big">{{ verdict }}</span>
+      <span class="score num" title="score {{ score }}/100">{{ score }}</span>
+      {% if effective_verdict != verdict %}
+      <span class="chip chip-{{ effective_verdict|lower }}" title="verdict excluding dismissed findings">after review: {{ effective_verdict }} ({{ effective_score }})</span>
+      {% endif %}
+    </div>
+    {% if headline %}<p class="headline">{{ headline }}</p>{% endif %}
+    <p class="meta muted">
+      <a href="/tenant/{{ tenant_id }}">{{ tenant_name }}</a>
+      - checked <span title="{{ checked_at }}">{{ checked_at|reltime }}</span>
+      - <span class="num">{{ cost_usd|money }}</span>
+      - pipeline {{ pipeline_version }}
+      {%- if escalated_by %} - escalated by {{ escalated_by }}{% endif %}
+    </p>
+    <div class="findings">
+      {% for f in findings %}
+      <article class="finding{% if f.dismissed %} dismissed{% endif %}">
+        <div class="f-head">
+          <span class="chip tier-chip tier-{{ f.tier }}">{{ f.check_id }}</span>
+          <span class="sev"><i class="sdot s-{{ f.severity|lower }}"></i>{{ f.severity }}</span>
+          <span class="confbar" title="confidence {{ "%.2f"|format(f.confidence) }}"><i style="width:{{ f.conf_px }}px"></i></span>
+        </div>
+        <p class="f-summary">{{ f.summary }}</p>
+        {% if f.evidence_lines %}<pre class="evidence">{{ f.evidence_lines|join("\n") }}</pre>{% endif %}
+        {% if f.suggested_fix %}<div class="fixrow"><span class="fix-label">Fix:</span> {{ f.suggested_fix }}</div>{% endif %}
+        <div class="f-foot">{{ f.model or "deterministic" }} - {{ f.policy_version }} - {{ f.prompt_version or "no prompt" }} - <span class="num">{{ f.cost_usd|money }}</span></div>
+        <div class="f-actions">
+          <button type="button" class="btn confirm{% if f.state == 'confirm' %} active{% endif %}" data-feedback="confirm" data-story="{{ story_id }}" data-check="{{ f.check_id }}">Confirm</button>
+          <button type="button" class="btn dismiss{% if f.state == 'dismiss' %} active{% endif %}" data-feedback="dismiss" data-story="{{ story_id }}" data-check="{{ f.check_id }}">Dismiss</button>
+        </div>
+      </article>
+      {% else %}
+      <p class="muted">No findings. Clean story.</p>
+      {% endfor %}
+    </div>
+    <details class="raw">
+      <summary>Raw story JSON</summary>
+      <pre>{{ story_pretty }}</pre>
+    </details>
+  </section>
+</div>
+{% endblock %}

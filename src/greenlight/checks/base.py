@@ -177,8 +177,19 @@ class CheckContext:
                     time.sleep(0.5 * (2 ** attempt) + random.uniform(0, 0.3))
                     continue
                 return FetchResult("BROKEN", None, None, error="timeout")
+            except httpx.ConnectError as e:
+                # DNS failure = a dead domain in the content -> BROKEN.
+                # Connection refused/unreachable = infrastructure (server down)
+                # -> UNVERIFIABLE, so an asset-server outage never pages a human
+                # about "broken content" (05 edge-case list).
+                msg = str(e)
+                if any(s in msg for s in ("getaddrinfo", "Name or service",
+                                          "nodename", "No address")):
+                    return FetchResult("BROKEN", None, None, error=f"DNS failure: {msg}")
+                return FetchResult("UNVERIFIABLE", None, None,
+                                   error=f"connection failed (server down?): {msg}")
             except httpx.HTTPError as e:
-                # DNS failure, connection refused, invalid URL, protocol error
+                # invalid URL, protocol error
                 return FetchResult("BROKEN", None, None, error=f"{type(e).__name__}: {e}")
         return FetchResult("BROKEN", None, None, error=last_error)
 

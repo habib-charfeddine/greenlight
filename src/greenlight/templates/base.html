@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Greenlight{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+{#- counters_panel is imported by index.html so /partials/queue can ship the
+    exact same header-counters markup for the polling swap. The call below is
+    guarded so importing this template never touches undefined context. -#}
+{% macro counters_panel(c, stale) -%}
+<span class="chip chip-green num">{{ c.green }} GREEN</span>
+<span class="chip chip-amber num">{{ c.amber }} AMBER</span>
+<span class="chip chip-red num">{{ c.red }} RED</span>
+<span class="hdr-item num">{{ c.cost_usd|money }} today</span>
+<span class="hdr-item" title="{{ c.last_poll or 'no poll recorded' }}">poll {{ c.last_poll|reltime }}</span>
+<span class="pulse {{ 'stale' if stale else 'live' }}" title="{{ 'watcher stale' if stale else 'watcher alive' }}"></span>
+{%- endmacro %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/">Greenlight</a>
+    <nav class="nav">
+      <a href="/">Queue</a>
+      <a href="/metrics">Metrics</a>
+    </nav>
+    <div class="hdr-counters" id="header-counters">
+      {%- if counters is defined %}{{ counters_panel(counters, watcher_stale) }}{% endif -%}
+    </div>
+  </div>
+</header>
+<main class="wrap">
+{% block content %}{% endblock %}
+</main>
+<script src="/static/app.js" defer></script>
+</body>
+</html>

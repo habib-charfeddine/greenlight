@@ -1,0 +1,48 @@
+{#- Rendered two ways: as the full queue page (extends base) and, with
+    partial=True, as the fragment served by /partials/queue — the same
+    queue + header-counters markup that app.js swaps in every 8s. -#}
+{% if not partial %}{% extends "base.html" %}{% endif %}
+{% from "base.html" import counters_panel %}
+{% block content %}
+{% if partial %}
+<div id="header-counters">{{ counters_panel(counters, watcher_stale) }}</div>
+{% else %}
+<div class="tabs">
+  <a class="tab{% if not active_tenant %} active{% endif %}" href="/">All</a>
+  {% for tid, tname in tabs %}
+  <a class="tab{% if active_tenant == tid %} active{% endif %}" href="/?tenant={{ tid }}">{{ tname }}</a>
+  {% endfor %}
+  {% if active_tenant %}<a class="tab-health" href="/tenant/{{ active_tenant }}">tenant health</a>{% endif %}
+</div>
+{% endif %}
+<div id="queue-region" data-tenant="{{ active_tenant }}">
+  {% if rows %}
+  <div class="queue">
+    {% for r in rows %}
+    <a class="qrow" href="/story/{{ r.story_id }}">
+      <span class="thumb">
+        <span class="thumb-letter">{{ r.letter }}</span>
+        {% if r.thumb_url %}<img src="{{ r.thumb_url }}" alt="" loading="lazy" data-fallback>{% endif %}
+      </span>
+      <span class="qmain">
+        <span class="qtitle">{{ r.story_title }}</span>
+        <span class="qsummary">{{ r.top_summary }}</span>
+      </span>
+      <span class="qtenant">{{ r.tenant_name }}</span>
+      <span class="chip chip-{{ r.verdict|lower }}">{{ r.verdict }}</span>
+      <span class="qscore num">{{ r.score }}</span>
+      <span class="qsev">
+        {%- for sev, n in r.sev_counts %}
+        <span class="sevb" title="{{ n }} {{ sev }} finding{{ 's' if n != 1 }}"><i class="sdot s-{{ sev|lower }}"></i><span class="num">{{ n }}</span> {{ sev }}</span>
+        {%- endfor %}
+      </span>
+      <span class="qtime" title="{{ r.checked_at }}">{{ r.checked_at|reltime }}</span>
+      <span class="qcost num">{{ r.cost_usd|money }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">All green. Nothing needs you.</div>
+  {% endif %}
+</div>
+{% endblock %}

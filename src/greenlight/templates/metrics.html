@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Metrics - Greenlight{% endblock %}
+{% block content %}
+<h1 class="page-title">Metrics</h1>
+
+<section class="card panel">
+  <h2>Totals</h2>
+  <table class="tbl">
+    <tr><th>stories checked</th><th>GREEN</th><th>AMBER</th><th>RED</th><th>total cost</th></tr>
+    <tr>
+      <td class="num">{{ totals.stories }}</td>
+      <td class="num">{{ totals.green }}</td>
+      <td class="num">{{ totals.amber }}</td>
+      <td class="num">{{ totals.red }}</td>
+      <td class="num">{{ totals.cost_usd|money }}</td>
+    </tr>
+  </table>
+</section>
+
+<section class="card panel">
+  <h2>Eval report <span class="muted">eval/report.md</span></h2>
+  {% if segments is none %}
+  <p class="muted">eval/report.md not found - run the eval harness to generate it.</p>
+  {% else %}
+  {% for seg in segments %}
+  {% if seg.kind == "table" %}
+  <table class="tbl">
+    {% for row in seg.rows %}
+    {% set is_head = loop.first %}
+    <tr>
+      {%- for cell in row %}
+      {%- if is_head %}<th>{{ cell }}</th>{% else %}<td>{{ cell }}</td>{% endif %}
+      {%- endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <pre class="mdpre">{{ seg.text }}</pre>
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+</section>
+
+<section class="card panel">
+  <h2>Reviewer feedback <span class="muted">dismiss rate per check</span></h2>
+  {% if fb_stats %}
+  <table class="tbl">
+    <tr><th>check_id</th><th>confirms</th><th>dismisses</th><th>dismiss rate</th><th></th></tr>
+    {% for s in fb_stats %}
+    <tr>
+      <td class="mono">{{ s.check_id }}</td>
+      <td class="num">{{ s.confirms }}</td>
+      <td class="num">{{ s.dismisses }}</td>
+      <td class="num">{{ "%.0f"|format(s.dismiss_rate * 100) }}%</td>
+      <td>{% if s.auto_quiet %}<span class="tag">candidate to auto-quiet</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">No reviewer feedback yet.</p>
+  {% endif %}
+</section>
+
+<section class="card panel">
+  <h2>Replay cache</h2>
+  {% if cache %}
+  <table class="tbl">
+    <tr><th>replay hits</th><th>replay misses</th><th>live calls</th><th>hit rate</th></tr>
+    <tr>
+      <td class="num">{{ cache.replay_hits }}</td>
+      <td class="num">{{ cache.replay_misses }}</td>
+      <td class="num">{{ cache.live_calls }}</td>
+      <td class="num">{{ cache.hit_rate }}</td>
+    </tr>
+  </table>
+  {% else %}
+  <p class="muted">No cache stats recorded.</p>
+  {% endif %}
+</section>
+{% endblock %}

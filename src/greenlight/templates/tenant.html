@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ tenant_name }} - Greenlight{% endblock %}
+{% block content %}
+<div class="crumbs"><a href="/">Queue</a> / tenant health</div>
+<h1 class="page-title">{{ tenant_name }} <span class="muted mono">{{ health.tenant_id }}</span></h1>
+<div class="stat-grid">
+  <div class="stat card">
+    <div class="stat-label">Pass rate</div>
+    <div class="stat-value num">{{ "%.0f"|format(health.pass_rate * 100) }}%</div>
+  </div>
+  <div class="stat card">
+    <div class="stat-label">Review load</div>
+    <div class="stat-value num">{{ "%.0f"|format(health.review_load * 100) }}%</div>
+  </div>
+  <div class="stat card">
+    <div class="stat-label">Cost / 1k stories</div>
+    <div class="stat-value num">{{ health.cost_per_1k|money }}</div>
+  </div>
+  <div class="stat card">
+    <div class="stat-label">Stories in window</div>
+    <div class="stat-value num">{{ health.n }}</div>
+  </div>
+  <div class="stat card">
+    <div class="stat-label">Policy version</div>
+    <div class="stat-value mono">{{ health.policy_version }}</div>
+  </div>
+  <div class="stat card">
+    <div class="stat-label">Burn-in</div>
+    <div class="stat-value">{{ burn_in_label }}</div>
+  </div>
+</div>
+<section class="card panel">
+  <h2>Score trend <span class="muted">last {{ health.n }} stories, oldest to newest</span></h2>
+  {% if trend_points %}
+  <svg class="trend" viewBox="0 0 600 120" preserveAspectRatio="none" role="img" aria-label="score trend">
+    <line class="axis" x1="8" y1="112" x2="592" y2="112" vector-effect="non-scaling-stroke"/>
+    <polyline points="{{ trend_points }}" fill="none" vector-effect="non-scaling-stroke"/>
+  </svg>
+  {% else %}
+  <p class="muted">No stories yet.</p>
+  {% endif %}
+</section>
+<section class="card panel">
+  <h2>Top failing checks</h2>
+  {% if top_checks %}
+  <div class="barlist">
+    {% for c in top_checks %}
+    <div class="barrow">
+      <span class="bar-name mono">{{ c.check_id }}</span>
+      <span class="bar-track"><i style="width:{{ c.pct }}%"></i></span>
+      <span class="bar-count num">{{ c.count }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">No findings in window.</p>
+  {% endif %}
+</section>
+{% endblock %}

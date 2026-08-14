@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS verdicts (
     latency_ms INTEGER NOT NULL DEFAULT 0,
     findings_json TEXT NOT NULL,
     story_json TEXT NOT NULL,
-    escalated_by TEXT
+    escalated_by TEXT,
+    headline TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS judged (
     content_hash TEXT NOT NULL,
@@ -111,8 +112,9 @@ class Store:
             self._conn.execute(
                 """INSERT INTO verdicts (story_id, tenant_id, content_hash, policy_version,
                        prompt_version, verdict, score, checked_at, pipeline_version,
-                       cost_usd, latency_ms, findings_json, story_json, escalated_by)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                       cost_usd, latency_ms, findings_json, story_json, escalated_by,
+                       headline)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(story_id) DO UPDATE SET
                        tenant_id=excluded.tenant_id, content_hash=excluded.content_hash,
                        policy_version=excluded.policy_version, prompt_version=excluded.prompt_version,
@@ -120,7 +122,7 @@ class Store:
                        checked_at=excluded.checked_at, pipeline_version=excluded.pipeline_version,
                        cost_usd=excluded.cost_usd, latency_ms=excluded.latency_ms,
                        findings_json=excluded.findings_json, story_json=excluded.story_json,
-                       escalated_by=excluded.escalated_by""",
+                       escalated_by=excluded.escalated_by, headline=excluded.headline""",
                 (
                     v.story_id, v.tenant_id, v.content_hash,
                     payload["findings"][0]["policy_version"] if payload["findings"] else "",
@@ -128,6 +130,7 @@ class Store:
                     v.pipeline_version, v.totals.get("cost_usd", 0.0),
                     v.totals.get("latency_ms", 0), json.dumps(payload["findings"]),
                     json.dumps(story_json), escalated_by,
+                    str(v.totals.get("headline") or ""),
                 ),
             )
             self._conn.execute(
