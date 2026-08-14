@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+greenlight.db
+audit.jsonl
+feedback.jsonl
+feedgen/.cache/
+feedgen/out/
+eval/world/
+.DS_Store

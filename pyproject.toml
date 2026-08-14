@@ -1,0 +1,37 @@
+[project]
+name = "greenlight"
+version = "0.1.0"
+description = "Greenlight - a publish-confidence layer for high-volume story feeds"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "httpx>=0.27",
+    "fastapi>=0.111",
+    "uvicorn>=0.30",
+    "jinja2>=3.1",
+    "pillow>=10.3",
+    "opencv-python-headless>=4.9",
+    "imagehash>=4.3",
+    "rapidfuzz>=3.9",
+    "anthropic>=0.40",
+    "pyyaml>=6.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "respx>=0.21",
+]
+
+[project.scripts]
+greenlight = "greenlight.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/greenlight"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

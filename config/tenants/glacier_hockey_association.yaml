@@ -1,0 +1,42 @@
+# Tenant policy pack — Glacier Hockey Association (second tenant: proves
+# multi-tenancy). en-US locale + different domain allowlist, so the same title
+# text can be clean for one tenant and flagged for the other.
+
+policy_version: "gha-2026.08.1"
+tenant_id: tenant_glacier_hockey_001
+tenant_name: Glacier Hockey Association
+
+locale: en-US                       # "center", "color"; en-GB spellings get flagged by T1.tone_style
+tone_rules: >
+  Family-friendly and upbeat. No clickbait constructions. No ALL-CAPS titles.
+banned_terms: ["insane", "literally unreal"]
+conventions: >
+  Fixture categories use the format "IBR @ FSW – MM/DD/YY".
+  Club names: "Iceberg Rovers" and "Frostbite Wanderers" in full on first mention.
+
+max_emoji: 3
+require_action: false
+
+allowed_domains:
+  - glacierhockey.org
+  - tickets.glacierhockey.org
+  - shop.glacierhockey.org
+  - localhost                         # demo feed host (feedgen CTA landing stubs)
+deny_url_shorteners: true
+deny_raw_ip_urls: true
+
+visual_rules: >
+  Game-day graphics must show both team names. Vertical 9:16 framing.
+  No betting-brand overlays.
+
+media:
+  min_width: 640
+  min_height: 1136
+  blur_laplacian_min: 100
+  video_max_seconds: 120
+
+vision_sample_rate: 0.15
+burn_in: false
+gate_mode: advisory
+disabled_checks: []
+severity_overrides: {}

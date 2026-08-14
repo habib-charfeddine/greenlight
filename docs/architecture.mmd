@@ -1,0 +1,29 @@
+flowchart LR
+  FEED["Story feed<br/>(updates continuously)"]
+
+  subgraph GL["Greenlight — publish-confidence layer"]
+    ING["Ingest & delta detect<br/>cursor + content hash<br/>(unchanged = never re-judged)"]
+    T0["Tier 0 · deterministic checks<br/>links · media · dates · dupes · placeholders<br/>cost ≈ $0 · confidence 1.0"]
+    T1["Tier 1 · text judge<br/>Haiku-class · cached policy<br/>≈ $0.002 / story"]
+    ESC{"escalate?<br/>P0/P1 found · 15% sample · burn-in"}
+    T2["Tier 2 · vision judge<br/>Sonnet-class · top keyframes<br/>≈ $0.014 / escalated story"]
+    SYN["Verdict synthesis<br/>severity × confidence, precision-first<br/>GREEN · AMBER · RED + score"]
+    DB[("SQLite + JSONL audit<br/>findings · feedback · costs")]
+  end
+
+  RED["RED → webhook alert<br/>(broken / embarrassing now)"]
+  AMB["AMBER → review queue"]
+  GRN["GREEN → auto-cleared<br/>(no human time spent)"]
+  DASH["Triage dashboard<br/>case files · tenant health · metrics"]
+  EVAL["Self-scoring eval<br/>seeded defects → precision/recall/cost"]
+
+  FEED -->|"poll / watch"| ING --> T0 --> T1 --> ESC
+  ESC -->|yes| T2 --> SYN
+  ESC -->|no| SYN
+  SYN --> DB
+  SYN --> RED
+  SYN --> AMB
+  SYN --> GRN
+  DB --> DASH
+  DASH -->|"confirm / dismiss feedback"| DB
+  EVAL -.->|"measures every run"| SYN

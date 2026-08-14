@@ -1,0 +1,86 @@
+# Greenlight global settings.
+# Model IDs and prices live HERE, not in code (03_CHECK_CATALOG / 02_BUILD_SPEC rule).
+# Prices verified against Anthropic docs on 2026-08-14 — re-verify with
+# `client.models.list()` before any live run (see README cost table).
+
+pipeline_version: "0.1.0"
+
+db_path: "greenlight.db"
+audit_log: "audit.jsonl"
+feedback_log: "feedback.jsonl"
+replay_cache: "fixtures/ai_replay.jsonl"
+
+feed:
+  url: "http://localhost:8100/feed.json"
+  poll_interval_s: 20
+
+webhook:
+  url: null            # Slack-shaped JSON POSTs here on RED; null -> stdout only
+
+# Hosts that may be fetched in offline (--replay) mode. Everything else returns
+# UNVERIFIABLE without network I/O — deterministic, honest, and fast.
+offline_fetch_hosts: ["localhost", "127.0.0.1"]
+
+dashboard:
+  port: 8000
+
+models:
+  tier1:
+    model: "claude-haiku-4-5-20251001"   # Haiku 4.5 — text judge
+    prompt_version: "t1-v1.0"
+    max_tokens: 1000
+    temperature: 0.2                     # accepted on Haiku 4.5
+  tier2:
+    model: "claude-sonnet-5"             # current Sonnet — vision judge
+    prompt_version: "t2-v1.0"
+    max_tokens: 1200
+    temperature: null                    # Sonnet 5 rejects non-default sampling params (400)
+    thinking: "disabled"                 # adaptive thinking is ON by default on Sonnet 5; a judge doesn't need it
+    effort: "low"                        # cheap, deterministic-ish judging
+
+# USD per million tokens (list prices, 2026-08-14).
+# Sonnet 5 has intro pricing $2/$10 through 2026-08-31; we book at list to be conservative.
+# cached_read = 0.1x input. NOTE: minimum cacheable prefix is 4096 tokens on Haiku 4.5
+# and 1024 on Sonnet 5 — our policy blocks are shorter, so cache_control is set but will
+# not actually produce cache reads at current prompt sizes. Cost math assumes NO cache.
+prices_usd_per_mtok:
+  claude-haiku-4-5-20251001: { input: 1.00, output: 5.00, cached_read: 0.10 }
+  claude-sonnet-5: { input: 3.00, output: 15.00, cached_read: 0.30 }
+
+# Engine knobs (tenant YAML can override some — see policy.py)
+vision_sample_rate: 0.15
+burn_in_stories: 20
+escalation_min_severity: "P1"    # any P0/P1 from T0/T1 escalates to Tier 2
+
+# Tier-0 thresholds (defaults; tenant media block overrides)
+thresholds:
+  http_timeout_connect: 3.05
+  http_timeout_read: 10.0
+  http_retries: 2
+  fetch_max_bytes: 26214400      # 25 MiB cap on asset downloads
+  image_min_width: 640
+  image_min_height: 1136
+  image_ideal_width: 1080
+  image_ideal_height: 1920
+  aspect_tolerance: 0.10         # deviation from 9:16
+  blur_laplacian_min: 100
+  solid_stddev_max: 5
+  solid_mean_max: 10
+  video_min_seconds: 1
+  video_max_seconds: 120
+  video_black_open_s: 2.0
+  video_black_ratio: 0.30
+  silent_max_volume_db: -50
+  caps_ratio: 0.5
+  caps_min_len: 12
+  max_emoji_default: 3
+  phash_same_hamming: 4
+  phash_near_hamming: 8
+  title_similarity_min: 90
+  dup_window_days: 7
+  dup_asset_window: 500
+  typosquat_max_levenshtein: 2
+
+# Verdict synthesis (engine rules #5)
+severity_weights: { P0: 40, P1: 15, P2: 5, P3: 1 }
+confidence_downgrade_below: 0.70

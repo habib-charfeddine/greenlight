@@ -1,0 +1,47 @@
+# Tenant policy pack — Antarctic Football League (the tenant from the brief)
+# Policy is data, not code: this is what makes Greenlight multi-tenant.
+# policy_version is stamped on every finding for auditability.
+
+policy_version: "afl-2026.08.1"
+tenant_id: tenant_antarctic_league_001
+tenant_name: Antarctic Football League
+
+locale: en-GB                      # "centre", "colour"; en-US spellings get flagged by T1.tone_style
+tone_rules: >
+  Professional and energetic. No clickbait constructions ("You won't BELIEVE...").
+  No ALL-CAPS titles. Exclamation marks sparingly (max 1 per title).
+banned_terms: ["damn", "hell yeah", "insane"]        # example house list
+conventions: >
+  Fixture categories use the format "PFC v SU – DD/MM/YY".
+  Club names: "Penguin FC" (never "Penguins FC"), "Seals United" (never "Seals Utd" in titles).
+
+max_emoji: 2
+require_action: false               # pages without CTAs are fine (P3 info only)
+
+# CTA / link policy
+allowed_domains:
+  - antarcticfootballleague.com
+  - tickets.antarcticfootballleague.com
+  - shop.antarcticfootballleague.com
+  - localhost                         # demo feed host (feedgen CTA landing stubs)
+deny_url_shorteners: true
+deny_raw_ip_urls: true
+
+# Visual rules consumed by the Tier-2 judge (free text, judge-readable)
+visual_rules: >
+  Matchday and fixture graphics must name both clubs. Imagery must be club-appropriate
+  (no betting-brand overlays). Vertical 9:16 framing; no landscape letterboxing.
+
+# Media thresholds (override global defaults if needed)
+media:
+  min_width: 640
+  min_height: 1136
+  blur_laplacian_min: 100
+  video_max_seconds: 120
+
+# Ops knobs
+vision_sample_rate: 0.15
+burn_in: false                      # true for newly onboarded tenants: full-tier first 20 stories
+gate_mode: advisory                 # advisory | hold_red | hold_amber (only advisory implemented in v1)
+disabled_checks: []                 # per-check kill switch, e.g. ["T0.text_style_emoji"]
+severity_overrides: {}              # e.g. {"T0.video_silent": "P1"} if this tenant demands audio
