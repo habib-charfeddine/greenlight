@@ -33,7 +33,35 @@ is how per-tenant thresholds tune over time.)
 ## What I built
 
 ```mermaid
-%% see docs/architecture.mmd
+flowchart LR
+  FEED["Story feed<br/>(updates continuously)"]
+
+  subgraph GL["Greenlight — publish-confidence layer"]
+    ING["Ingest & delta detect<br/>cursor + content hash<br/>(unchanged = never re-judged)"]
+    T0["Tier 0 · deterministic checks<br/>links · media · dates · dupes · placeholders<br/>cost ≈ $0 · confidence 1.0"]
+    T1["Tier 1 · text judge<br/>Haiku-class · cached policy<br/>≈ $0.002 / story"]
+    ESC{"escalate?<br/>P0/P1 found · 15% sample · burn-in"}
+    T2["Tier 2 · vision judge<br/>Sonnet-class · top keyframes<br/>≈ $0.014 / escalated story"]
+    SYN["Verdict synthesis<br/>severity × confidence, precision-first<br/>GREEN · AMBER · RED + score"]
+    DB[("SQLite + JSONL audit<br/>findings · feedback · costs")]
+  end
+
+  RED["RED → webhook alert<br/>(broken / embarrassing now)"]
+  AMB["AMBER → review queue"]
+  GRN["GREEN → auto-cleared<br/>(no human time spent)"]
+  DASH["Triage dashboard<br/>case files · tenant health · metrics"]
+  EVAL["Self-scoring eval<br/>seeded defects → precision/recall/cost"]
+
+  FEED -->|"poll / watch"| ING --> T0 --> T1 --> ESC
+  ESC -->|yes| T2 --> SYN
+  ESC -->|no| SYN
+  SYN --> DB
+  SYN --> RED
+  SYN --> AMB
+  SYN --> GRN
+  DB --> DASH
+  DASH -->|"confirm / dismiss feedback"| DB
+  EVAL -.->|"measures every run"| SYN
 ```
 
 A 60-second tour: a **feed poller** (cursor + content hash — unchanged stories
@@ -175,6 +203,13 @@ promise); ASR/transcript checks on video audio (roadmap: speech profanity);
 embedding-based style memory (needs data volume); i18n beyond en-GB/en-US;
 reviewer workflow management (assignments/SLAs); fine-tuning (golden set far
 too small — prompts + thresholds + feedback loop is the right first rung).
+
+## Timebox
+
+<!-- EDIT BEFORE SUBMITTING: state your true hands-on time, e.g.: -->
+*~2 hours hands-on driving an AI build agent against a spec kit I prepared
+beforehand (research and kit-writing time on top of that). The agent's outputs
+were verified at milestone checkpoints; docs/AI_USAGE.md is the log.*
 
 ## How AI was used
 

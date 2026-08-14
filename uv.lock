@@ -138,6 +138,12 @@ dependencies = [
     { name = "uvicorn" },
 ]
 
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "respx" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
@@ -154,10 +160,13 @@ requires-dist = [
     { name = "opencv-python-headless", specifier = ">=4.9" },
     { name = "pillow", specifier = ">=10.3" },
     { name = "pydantic", specifier = ">=2.7" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rapidfuzz", specifier = ">=3.9" },
+    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
+provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
