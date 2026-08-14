@@ -100,21 +100,25 @@ def cmd_demo(args) -> None:
         time.sleep(4)
 
         # The brief's own fixture goes through the same pipeline as everything else.
+        # NOTE: --db is a GLOBAL option and must precede the subcommand.
         fixture = Path("fixtures/example_from_brief.json")
         if fixture.exists():
-            subprocess.call([py, "-m", "greenlight.cli", "ingest", "--feed", str(fixture),
-                             "--db", args.db])
+            subprocess.call([py, "-m", "greenlight.cli", "--db", args.db,
+                             "ingest", "--feed", str(fixture)])
 
-        spawn([py, "-m", "greenlight.cli", "watch", "--feed",
-               "http://localhost:8100/feed.json", "--interval", "20", "--db", args.db])
-        spawn([py, "-m", "greenlight.cli", "serve", "--port", "8000", "--db", args.db])
+        spawn([py, "-m", "greenlight.cli", "--db", args.db, "watch", "--feed",
+               "http://localhost:8100/feed.json", "--interval", "20"])
+        spawn([py, "-m", "greenlight.cli", "--db", args.db, "serve", "--port", "8000"])
         log.info("demo up: dashboard http://localhost:8000  feed http://localhost:8100/feed.json")
         log.info("Ctrl+C stops everything.")
         while True:
             time.sleep(1)
-            for p in procs:
-                if p.poll() is not None:
-                    log.warning("child %s exited with %s", p.args[2] if len(p.args) > 2 else p.args, p.returncode)
+            dead = [p for p in procs if p.poll() is not None]
+            if dead:
+                for p in dead:
+                    log.error("child %s exited with %s — stopping the demo",
+                              " ".join(map(str, p.args[-4:])), p.returncode)
+                break
     except KeyboardInterrupt:
         pass
     finally:

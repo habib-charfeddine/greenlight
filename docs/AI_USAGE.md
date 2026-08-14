@@ -58,6 +58,29 @@ at milestone boundaries, and honesty control (no invented numbers).
   offline (story_123 AMBER + both CTA-mismatch findings with json_paths;
   re-run skips both stories via content-hash cache); all dashboard routes
   render against a real store; injection pair proven by test.
+- **The precision pass (the eval doing its job).** First eval run: P0/P1 catch
+  rate 100%, but `T0.dup_asset` precision 12% and `T0.dup_story` 20% — seven
+  clean stories false-flagged, clean-story flag rate 17% (target ≤10%).
+  Instead of guessing, we measured the eval world's pairwise pHash distances:
+  the true seeded re-publish pair sits at Hamming 0; clean stories sharing the
+  tenant's house template floor at 6–8 — the catalog's `near ≤ 8` default is
+  wrong for template-driven sport content. Tightened `phash_near_hamming`
+  8 → 5 in settings (with the measurement in the comment). Re-run: dup checks
+  100%/100%, clean flag rate 0%, catch rate still 100%. *Human should verify:*
+  this threshold was tuned on synthetic covers; re-measure on a real tenant's
+  media before trusting it.
+- **Spec discrepancy caught by an agent and fixed at integration**: the 05
+  seed matrix's "silent video" seed generated no audio stream, but the
+  catalog's `T0.video_silent` measures volumedetect on an *existing* stream
+  (absence is `video_probe`'s no-audio P2 — a different defect). The asset now
+  carries a digital-silence audio track, so the check fires as cataloged.
+- **Bug found only by actually running `make demo`** (51 green tests did not
+  catch it): the demo spawned its children with the global `--db` flag *after*
+  the argparse subcommand, so all three child processes crash-looped with
+  "unrecognized arguments" while the parent warn-spammed forever. Fixed the
+  argument order and made the demo stop loudly when any child dies. Lesson
+  recorded here deliberately: unit tests validated every component, and the
+  one thing that broke was the glue that only an end-to-end run exercises.
 
 ### Key prompts used (excerpts)
 
