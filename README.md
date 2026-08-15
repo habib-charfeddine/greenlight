@@ -99,57 +99,73 @@ replay cache).
 `make eval` · `make test` · `make watch` — or the same `uv run greenlight ...`
 subcommands on Windows.
 
-## Results (seeded-defect eval, replay mode)
+## Results (seeded-defect eval, LIVE run)
 
-Real output of `make eval` (seed 1337, 40 stories, 2 tenants — full tables and
-scoring rules in [eval/report.md](eval/report.md)):
+Real output of `greenlight eval --live` — 61 recorded API calls (Haiku 4.5
+text judge on all 40 stories, Sonnet vision judge on 21 escalations), $0.30
+total spend. Full tables and scoring rules in [eval/report.md](eval/report.md);
+every judge response is committed in `fixtures/ai_replay.jsonl` (`source:
+"live"`), so a reviewer reproduces these exact numbers offline, for free.
 
 | metric | value |
 | --- | --- |
-| P0/P1 catch rate (seeded defects) | **100%** (23/23) |
-| Flag rate on clean stories | **0%** (0/24) |
-| Human review load (AMBER+RED, all stories) | 35% *(the eval world is 40% seeded by design; the clean-world figure is the 0% above)* |
-| Median latency / story | 10,882 ms *(offline, single-threaded, dominated by per-video ffmpeg subprocess spawns; image-only stories run ~1–2s — workers parallelize this later)* |
-| Per-check recall / precision | 100% / 100% on all 28 seeded checks after tuning (see below) |
+| P0/P1 catch rate (seeded defects) | **96%** (22/23) — one miss, analysed below |
+| Tier-0 (deterministic) checks | 20/20 classes at 100% recall / 100% precision |
+| Injection attempt | caught by the live model (`T1.injection_attempt`), verdict unaffected |
+| Flag rate on clean stories | 17% (4/24) — above the ≤10% target, analysed below |
+| Median latency / story | 15.3 s live (10.9 s replay; ffmpeg + API dominated, single-threaded) |
+| Measured cost | $0.0021/story Tier 1 · $0.0105/escalated story Tier 2 |
 
-Every one of the catalog's 28 seeded defect classes is caught with the labeled
-json_path (strict-path column). Five checks have **no eval coverage** and are
-listed as unknown-not-perfect in the report: `T0.missing_action`,
-`T1.factual_smell`, `T2.visual_brand`, `T2.visual_quality`, `T2.visual_safety`.
+**What the live run exposed (kept honest, not re-rolled):**
 
-**Tuning note (the eval doing its job).** The first run scored `T0.dup_asset`
-at 12% precision and `T0.dup_story` at 20% — seven clean stories false-flagged
-(clean flag rate 17%). Measuring the world's pairwise pHash distances showed
-why: the true re-published pair sits at Hamming 0, while clean stories sharing
-the tenant's house template floor at 6–8, so the catalog's `near ≤ 8` default
-is too loose for template-driven sport content. `phash_near_hamming` 8 → 5
-(measurement documented in `config/settings.yaml`) took the clean flag rate
-17% → 0% with catch rate still 100%. That threshold is synthetic-world-tuned —
-and the synthetic assets render with whatever fonts the machine has, so exact
-pHash distances are platform-dependent; re-run `make eval` locally to re-derive,
-and re-measure on real tenant media before trusting it in production.
+- **`T1.coherence` missed its seed (0/1)** — the real judge didn't flag a title
+  naming a club absent from the story's categories. Tuning next: the rubric line
+  gets a worked example (the calibration example that made `spelling_grammar`
+  reliable); re-run costs cents.
+- **The clean-story flag rate is 17%, and the vision judge is the reason —
+  arguably because it's right and our synthetic world is wrong.** The 4 flagged
+  clean stories were hit by `T2.visual_brand`/`T2.visual_quality`: the tenant
+  policy says matchday graphics must name both clubs, and our synthetic "clean"
+  covers are abstract gradients that don't. The judge enforced the policy we
+  gave it against covers our generator never made compliant. Fix is world-side
+  (generate policy-compliant clean covers) plus a prompt note that stylised
+  covers aren't photographs; the product-side backstop already exists — two
+  reviewer dismissals surface the check as an auto-quiet candidate on /metrics.
+- `T2.thumb_title_match` over-fires on abstract covers (20% precision, P2 so it
+  never drives a verdict) — same root cause.
+
+**Tuning history (the eval doing its job, both rounds):** the first replay
+round caught `T0.dup_asset`/`T0.dup_story` at 12%/20% precision; measuring the
+world's pHash distances (true dup at Hamming 0, template-sharing clean floor at
+6–8) justified tightening `phash_near_hamming` 8 → 5, which took dup FPs to
+zero without losing the catch. The live round then exposed the two judge issues
+above. That loop — measure, explain, tune or report — is the point of shipping
+the eval with the product.
 
 **Honesty notes.**
-- Replay-mode Tier-1/2 rows are backed by **hand-authored** replay fixtures
-  derived from the golden labels (`scripts/seed_replay.py`, entries marked
-  `"source": "hand_authored"`). They demonstrate pipeline plumbing —
-  escalation, clamping, synthesis, routing — **not model skill**. A `--live`
-  run replaces them with recorded model outputs and real cost/latency numbers.
-- Synthetic seeds ≠ production distribution. The next validation step is a
-  shadow run on a real tenant feed, measuring agreement with the humans who do
-  this triage today.
+- Eval-world judge rows above are **live-recorded** model outputs. The offline
+  demo's world (a different seed) still replays hand-authored fixtures marked
+  `"source": "hand_authored"` — plumbing demonstration, not model skill.
+- Synthetic seeds ≠ production distribution, and synthetic covers are the
+  proven weak spot (see above). Next validation step: shadow-run a real tenant
+  feed and measure agreement with the analysts who do this triage today.
+- Exact pHash distances are font/platform-dependent (synthetic assets render
+  with local fonts); re-run `make eval` locally to re-derive.
 
 ## Cost
 
-| Tier | Model | When it runs | List price basis | Est. cost/story |
+| Tier | Model | When it runs | List price basis | **Measured** cost/story |
 |---|---|---|---|---|
 | 0 | pure Python/ffmpeg | always | — | ~$0 |
-| 1 | `claude-haiku-4-5` | every new/changed story | $1 / $5 per MTok | ~$0.002 |
-| 2 | `claude-sonnet-5` | ~15–25% (escalation+sample) | $3 / $15 per MTok | ~$0.014/escalated |
+| 1 | `claude-haiku-4-5` | every new/changed story | $1 / $5 per MTok | **$0.0021** (live, n=40) |
+| 2 | `claude-sonnet-5` | escalation + 15% sample | $3 / $15 per MTok | **$0.0105**/escalated (live, n=21) |
 
-Blended: **roughly $3–6 per 1,000 stories** at list prices; Batch API halves AI
-cost for backfills. Model IDs and prices live in `config/settings.yaml`, not in
-code; every finding carries its measured cost. *(Caveat verified at build time:
+Measured on the live eval: **$7.59 per 1k stories** on the defect-heavy eval
+world (52% escalation by design); at a realistic 15% escalation on a clean feed
+the same measured per-call costs project to **~$3.65 per 1k stories**. Batch
+API halves AI cost for backfills. Model IDs and prices live in
+`config/settings.yaml`, not in code; every finding carries its measured cost.
+*(Caveat verified at build time:
 prompt-cache reads don't apply at our prompt sizes — the minimum cacheable
 prefix is 4096 tokens on Haiku 4.5 — so cost math assumes no cache discount.
 Sonnet 5 intro pricing $2/$10 through 2026-08-31 would land below these

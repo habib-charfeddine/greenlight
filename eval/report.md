@@ -3,8 +3,8 @@
 - seed: 1337
 - stories: 40 labeled, 40 verdicts
 - tenants: 2, defect rate: 0.35
-- date: 2026-08-14 (UTC)
-- mode: replay (offline; external hosts UNVERIFIABLE by design)
+- date: 2026-08-15 (UTC)
+- mode: live (Anthropic API, responses recorded to the replay cache)
 
 ## Per-check scores
 
@@ -30,25 +30,27 @@
 | T0.video_black | 1 | 1 | 100% | 100% | 1 | 0 |
 | T0.video_probe | 1 | 1 | 100% | 100% | 1 | 0 |
 | T0.video_silent | 1 | 1 | 100% | 100% | 1 | 0 |
-| T1.coherence | 1 | 1 | 100% | 100% | 1 | 0 |
-| T1.cta_copy_mismatch | 1 | 1 | 100% | 100% | 1 | 0 |
+| T1.coherence | 1 | 0 | 0% | - | 0 | 0 |
+| T1.cta_copy_mismatch | 1 | 1 | 100% | 100% | 0 | 0 |
 | T1.injection_attempt | 1 | 1 | 100% | 100% | 1 | 0 |
 | T1.safety_screen | 1 | 1 | 100% | 100% | 1 | 0 |
 | T1.spelling_grammar | 1 | 1 | 100% | 100% | 1 | 0 |
 | T1.tone_style | 2 | 2 | 100% | 100% | 2 | 0 |
-| T2.thumb_title_match | 1 | 1 | 100% | 100% | 1 | 0 |
+| T2.thumb_title_match | 1 | 1 | 100% | 20% | 1 | 4 |
+| T2.visual_brand | 0 | 0 | - | 0% | 0 | 4 |
+| T2.visual_quality | 0 | 0 | - | 0% | 0 | 2 |
 | T2.visual_text | 1 | 1 | 100% | 100% | 1 | 0 |
 
 ## Overall
 
 | metric | value |
 | --- | --- |
-| P0/P1 catch rate (seeded) | 100% (23/23) |
-| Flag rate on clean stories | 0% (0/24) |
-| Human review load (AMBER+RED, all stories) | 35% |
-| Median latency / story | 10882 ms |
-| Mean cost / story | $0.0000 |
-| Cost per 1k stories | $0.00 |
+| P0/P1 catch rate (seeded) | 96% (22/23) |
+| Flag rate on clean stories | 17% (4/24) |
+| Human review load (AMBER+RED, all stories) | 48% |
+| Median latency / story | 15274 ms |
+| Mean cost / story | $0.0076 |
+| Cost per 1k stories | $7.59 |
 
 ## Scoring rules
 
@@ -66,4 +68,4 @@ Catalog checks never exercised by a seeded defect — recall is unknown for thes
 
 ## Replay provenance
 
-Replay cache ai_replay.jsonl: 122 entries (122 hand_authored). Hand-authored entries demonstrate pipeline plumbing, not model skill — live-recorded numbers replace them after a --live run.
+Replay cache ai_replay.jsonl: 183 entries (122 hand_authored, 61 live). Hand-authored entries demonstrate pipeline plumbing, not model skill — live-recorded numbers replace them after a --live run.

@@ -150,6 +150,17 @@ verification structure I set up* — not by luck. The build log is the evidence.
   pHash numbers are font/platform-dependent — all fixed or reworded.
   Two review claims were refuted by the verifiers (they described pre-fix
   code) and correctly not "fixed" twice.
+- **Live fire (I ran it, 2026-08-15).** 61 real API calls recorded into the
+  replay cache ($0.30 total): Haiku 4.5 judged all 40 eval stories, Sonnet
+  judged 21 escalations. Results kept exactly as measured, per the
+  never-invent-numbers rule: P0/P1 catch rate 96% — the real judge missed the
+  seeded `T1.coherence` defect the hand-authored fixture had assumed it would
+  catch (tuning next: a worked example in that rubric line) — and the vision
+  judge flagged 4 synthetic "clean" covers for violating the tenant's own
+  visual rules, which our generator had never made compliant. We documented
+  the judge as arguably *right* and the synthetic world as wrong, rather than
+  quietly re-rolling or reseeding. Measured costs landed on the estimates:
+  $0.0021/story Tier 1 (est. $0.002), $0.0105/escalation Tier 2 (est. $0.014).
 
 ### Key prompts used (excerpts)
 
