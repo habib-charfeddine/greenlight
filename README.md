@@ -3,8 +3,12 @@
 Every published story becomes an evidence-backed **GREEN / AMBER / RED** verdict,
 automatically and repeatedly. Humans only look where attention is earned.
 
-![demo](docs/demo.gif) *(demo GIF placeholder — `make demo`, then: triage queue →
-story_123 case file → /metrics)*
+![demo](docs/demo.gif)
+
+*Two-minute walkthrough: triage queue filling live → the brief's own `story_123`
+case file with the swapped-CTA evidence → a reviewer dismissal recomputing the
+verdict → the /metrics scorecard with live-run numbers.
+[Higher-quality MP4](docs/demo.mp4).*
 
 ## The real issue
 
